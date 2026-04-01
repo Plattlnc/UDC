@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { store } from "./supabase.js";
 
 var DEFAULT_USERS = [
-  { id: "admin1", name: "사장님", role: "admin", pin: "000000", phone: "", hireDate: "" },
+  { id: "admin1", name: "사장님", role: "admin", pin: "197356", phone: "", hireDate: "" },
   { id: "emp1", name: "김민수", role: "employee", pin: "111111", phone: "", hireDate: "" },
   { id: "emp2", name: "이서연", role: "employee", pin: "222222", phone: "", hireDate: "" },
   { id: "emp3", name: "박준호", role: "employee", pin: "333333", phone: "", hireDate: "" },
