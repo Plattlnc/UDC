@@ -1780,7 +1780,7 @@ function AdminEmployee(p) {
 
   function addEmp() {
     if (!newEmp.name.trim() || newEmp.pin.length !== 6) { setToast("이름과 PIN 6자리 필요"); setTimeout(function() { setToast(""); }, 2000); return; }
-    if (users.some(function(u) { return u.pin === newEmp.pin; })) { setToast("이미 사용 중인 PIN"); setTimeout(function() { setToast(""); }, 2000); return; }
+    if (users.some(function(u) { return u.pin === newEmp.pin && (u.status || "active") === "active"; })) { setToast("이미 사용 중인 PIN"); setTimeout(function() { setToast(""); }, 2000); return; }
     var ne = { id: "emp_" + Date.now(), name: newEmp.name.trim(), role: "employee", pin: newEmp.pin, phone: newEmp.phone, hireDate: newEmp.hireDate, status: "active" };
     var u = users.concat([ne]);
     setUsers(u); store.set("ft-users", u);
