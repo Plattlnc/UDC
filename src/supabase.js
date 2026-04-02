@@ -23,7 +23,20 @@ export const store = {
     return supabase
       .from('app_data')
       .upsert({ key: key, value: value, updated_at: new Date().toISOString() })
-      .then(function() { return true; })
-      .catch(function(e) { console.error(e); return false; });
+      .then(function(res) {
+        if (res.error) {
+          console.error('[store.set] 저장 실패:', key, res.error.message);
+          // 1회 재시도
+          return supabase
+            .from('app_data')
+            .upsert({ key: key, value: value, updated_at: new Date().toISOString() })
+            .then(function(r2) {
+              if (r2.error) { console.error('[store.set] 재시도 실패:', key, r2.error.message); return false; }
+              return true;
+            });
+        }
+        return true;
+      })
+      .catch(function(e) { console.error('[store.set] 네트워크 오류:', key, e); return false; });
   }
 };
