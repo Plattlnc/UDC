@@ -2420,19 +2420,18 @@ function App() {
     function reload() {
       if (document.visibilityState !== "visible") return;
       Promise.all([
-        store.get("ft-users", null), store.get("ft-settings", DEFAULT_SETTINGS),
+        store.get("ft-settings", DEFAULT_SETTINGS),
         store.get("ft-reports", {}),
         store.get("ft-inv-items", []), store.get("ft-inv-stock", {}), store.get("ft-inv-requests", []),
         store.get("ft-gas", {}), store.get("ft-schedules", {}),
         store.get("ft-fixed-costs", []), store.get("ft-variable-costs", []),
         store.get("ft-production", []), store.get("ft-prod-settings", {})
       ]).then(function(res) {
-        if (res[0] && Array.isArray(res[0]) && res[0].length > 0) setUsers(res[0]);
-        setSettings(res[1]); setReports(res[2]);
-        setInventoryItems(res[3]); setInventoryStock(res[4]); setRequests(res[5]);
-        setGasData(res[6]); setSchedules(res[7]);
-        setFixedCosts(res[8]); setVarCosts(res[9]);
-        setProduction(res[10]); setProdSettings(res[11]);
+        setSettings(res[0]); setReports(res[1]);
+        setInventoryItems(res[2]); setInventoryStock(res[3]); setRequests(res[4]);
+        setGasData(res[5]); setSchedules(res[6]);
+        setFixedCosts(res[7]); setVarCosts(res[8]);
+        setProduction(res[9]); setProdSettings(res[10]);
       });
     }
     document.addEventListener("visibilitychange", reload);
