@@ -574,18 +574,18 @@ function EmpReport(p) {
               return <span style={{ fontSize: 12, fontWeight: 700, color: "#e1360a", opacity: 0.7 }}>{h}시간 {m}분</span>;
             })()}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: "0 1 140px" }}>
               <label style={LS}>출근</label>
               <input type="time" value={formData.clockIn} disabled={!editing}
                 onChange={function(e) { up("clockIn", e.target.value); }}
-                style={Object.assign({}, IS, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
+                style={Object.assign({}, IS, { width: "100%" }, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
             </div>
-            <div>
+            <div style={{ flex: "0 1 140px" }}>
               <label style={LS}>퇴근</label>
               <input type="time" value={formData.clockOut} disabled={!editing}
                 onChange={function(e) { up("clockOut", e.target.value); }}
-                style={Object.assign({}, IS, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
+                style={Object.assign({}, IS, { width: "100%" }, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
             </div>
           </div>
         </div>
@@ -2169,18 +2169,18 @@ function AdminReport(p) {
               return <span style={{ fontSize: 12, fontWeight: 700, color: "#e1360a", opacity: 0.7 }}>{h}시간 {m}분</span>;
             })()}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: "0 1 140px" }}>
               <label style={LS}>출근</label>
               <input type="time" value={formData.clockIn} disabled={!editing}
                 onChange={function(e) { up("clockIn", e.target.value); }}
-                style={Object.assign({}, IS, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
+                style={Object.assign({}, IS, { width: "100%" }, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
             </div>
-            <div>
+            <div style={{ flex: "0 1 140px" }}>
               <label style={LS}>퇴근</label>
               <input type="time" value={formData.clockOut} disabled={!editing}
                 onChange={function(e) { up("clockOut", e.target.value); }}
-                style={Object.assign({}, IS, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
+                style={Object.assign({}, IS, { width: "100%" }, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
             </div>
           </div>
         </div>
