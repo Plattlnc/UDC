@@ -2060,7 +2060,7 @@ function AdminEmployee(p) {
 
 function AdminReport(p) {
   var reports = p.reports, setReports = p.setReports, users = p.users, settings = p.settings;
-  var employees = users.filter(function(u) { return u.role === "employee" && (u.status || "active") !== "deleted"; });
+  var employees = users.filter(function(u) { return u.role === "employee"; });
   var r1 = useState(employees.length > 0 ? employees[0].id : null), selEmpId = r1[0], setSelEmpId = r1[1];
   var r2 = useState(null), selKey = r2[0], setSelKey = r2[1];
   var r3 = useState(null), selDate = r3[0], setSelDate = r3[1];
@@ -2239,11 +2239,13 @@ function AdminReport(p) {
       <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         {employees.map(function(emp) {
           var isActive = selEmpId === emp.id;
-          var isResigned = (emp.status || "active") === "resigned";
+          var empStatus = emp.status || "active";
+          var isInactive = empStatus !== "active";
+          var statusLabel = empStatus === "resigned" ? " (퇴사)" : empStatus === "deleted" ? " (삭제)" : "";
           return (
             <button key={emp.id} onClick={function() { setSelEmpId(emp.id); setShow(10); }}
-              style={Object.assign({}, BO, { padding: "6px 14px", fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }, isActive ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {}, isResigned && !isActive ? { opacity: 0.6 } : {})}>
-              {emp.name}{isResigned ? " (퇴사)" : ""}
+              style={Object.assign({}, BO, { padding: "6px 14px", fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }, isActive ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {}, isInactive && !isActive ? { opacity: 0.5, borderStyle: "dashed" } : {})}>
+              {emp.name}{statusLabel}
             </button>
           );
         })}
@@ -2251,7 +2253,14 @@ function AdminReport(p) {
       {selEmp && (
         <div style={Object.assign({}, CS, { padding: "10px 14px", marginBottom: 10, background: "#fff8f6" })}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#e1360a", margin: 0 }}>👤 {selEmp.name}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#e1360a", margin: 0 }}>👤 {selEmp.name}</p>
+              {(selEmp.status || "active") !== "active" && (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: (selEmp.status || "active") === "resigned" ? "#fef2f2" : "#f4f4f5", color: (selEmp.status || "active") === "resigned" ? "#e1360a" : "#a1a1aa" }}>
+                  {(selEmp.status || "active") === "resigned" ? "퇴사" : "삭제됨"}
+                </span>
+              )}
+            </div>
             <p style={{ fontSize: 12, fontWeight: 600, color: "#71717a", margin: 0 }}>총 {list.length}건</p>
           </div>
         </div>
