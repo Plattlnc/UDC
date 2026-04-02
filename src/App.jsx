@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from "react";
 import { store } from "./supabase.js";
 
 var DEFAULT_USERS = [
-  { id: "admin1", name: "사장님", role: "admin", pin: "197356", phone: "", hireDate: "" },
-  { id: "emp1", name: "김민수", role: "employee", pin: "111111", phone: "", hireDate: "" },
-  { id: "emp2", name: "이서연", role: "employee", pin: "222222", phone: "", hireDate: "" },
-  { id: "emp3", name: "박준호", role: "employee", pin: "333333", phone: "", hireDate: "" },
-  { id: "emp4", name: "최유진", role: "employee", pin: "444444", phone: "", hireDate: "" },
-  { id: "emp5", name: "정하늘", role: "employee", pin: "555555", phone: "", hireDate: "" }
+  { id: "admin1", name: "사장님", role: "admin", pin: "197356", phone: "", hireDate: "", status: "active" },
+  { id: "emp1", name: "김민수", role: "employee", pin: "111111", phone: "", hireDate: "", status: "active" },
+  { id: "emp2", name: "이서연", role: "employee", pin: "222222", phone: "", hireDate: "", status: "active" },
+  { id: "emp3", name: "박준호", role: "employee", pin: "333333", phone: "", hireDate: "", status: "active" },
+  { id: "emp4", name: "최유진", role: "employee", pin: "444444", phone: "", hireDate: "", status: "active" },
+  { id: "emp5", name: "정하늘", role: "employee", pin: "555555", phone: "", hireDate: "", status: "active" }
 ];
 var DEFAULT_SETTINGS = { pricePerUnit: 5000, hourlyWage: 10000, salesBonus: 1400 };
 
@@ -1037,7 +1037,7 @@ function AdminHome(p) {
         </div>
       </div>
       <p style={{ fontSize: 13, fontWeight: 700, margin: "12px 0 10px" }}>👥 직원별 현황</p>
-      {(p.users || []).filter(function(u) { return u.role === "employee"; }).map(function(emp) {
+      {(p.users || []).filter(function(u) { return u.role === "employee" && (u.status || "active") !== "deleted"; }).map(function(emp) {
         var ts = 0, ms = 0, ws = 0, ds = 0;
         Object.entries(reports).forEach(function(e) {
           var date = e[0], dr = e[1];
@@ -1055,7 +1055,7 @@ function AdminHome(p) {
         var mLabel = (now.getMonth() + 1) + "월";
         return (
           <div key={emp.id} style={Object.assign({}, CS, { marginBottom: 8, padding: "12px 16px" })}>
-            <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 10px", color: "#18181b" }}>{emp.name}</p>
+            <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 10px", color: "#18181b" }}>{emp.name}{(emp.status || "active") === "resigned" ? <span style={{ fontSize: 10, fontWeight: 600, color: "#e1360a", marginLeft: 6 }}>(퇴사)</span> : ""}</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
               <div>
                 <p style={{ fontSize: 10, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>누적</p>
@@ -1178,7 +1178,7 @@ function AdminFinance(p) {
   var vcList = vcView === "all" ? allVarList : monthVarList;
   var allVarTotal = allVarList.reduce(function(a, c) { return a + (Number(c.amount) || 0); }, 0);
 
-  var emps = (p.users || []).filter(function(u) { return u.role === "employee"; });
+  var emps = (p.users || []).filter(function(u) { return u.role === "employee" && (u.status || "active") !== "deleted"; });
   var totalCosts = totalFixed + monthProdCost + monthVar;
   var empQuota = emps.length > 0 && price > 0 ? Math.ceil(totalCosts / emps.length / price) : 0;
 
@@ -1259,7 +1259,7 @@ function AdminFinance(p) {
             return (
               <div key={emp.id} style={{ marginBottom: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>{emp.name}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{emp.name}{(emp.status || "active") === "resigned" ? <span style={{ fontSize: 9, color: "#e1360a", marginLeft: 4 }}>(퇴사)</span> : ""}</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: done ? "#16a34a" : "#e1360a" }}>{sold} / {empQuota}개</span>
                 </div>
                 <div style={{ height: 8, borderRadius: 4, background: "#f4f4f5", overflow: "hidden" }}>
@@ -1586,7 +1586,7 @@ function AdminInventory(p) {
   var users = p.users;
   var r1 = useState(""), newName = r1[0], setNewName = r1[1];
   var r2 = useState(""), toast = r2[0], setToast = r2[1];
-  var emps = users.filter(function(u) { return u.role === "employee"; });
+  var emps = users.filter(function(u) { return u.role === "employee" && (u.status || "active") === "active"; });
   var pending = requests.filter(function(r) { return r.status === "pending"; });
 
   function addItem() {
@@ -1725,7 +1725,9 @@ function AdminEmployee(p) {
   var r15 = useState(false), schEdit = r15[0], setSchEdit = r15[1];
   var r16 = useState(null), payViewId = r16[0], setPayViewId = r16[1];
   var r17 = useState(20), payShow = r17[0], setPayShow = r17[1];
-  var emps = users.filter(function(u) { return u.role === "employee"; });
+  var r18 = useState("all"), empFilter = r18[0], setEmpFilter = r18[1];
+  var allEmps = users.filter(function(u) { return u.role === "employee" && (u.status || "active") !== "deleted"; });
+  var emps = empFilter === "all" ? allEmps : allEmps.filter(function(u) { return (u.status || "active") === empFilter; });
   var vehicles = settings.vehicles || {};
   var empSettings = settings.empSettings || {};
   var dayLabels = ["월", "화", "수", "목", "금", "토"];
@@ -1764,7 +1766,7 @@ function AdminEmployee(p) {
   function addEmp() {
     if (!newEmp.name.trim() || newEmp.pin.length !== 6) { setToast("이름과 PIN 6자리 필요"); setTimeout(function() { setToast(""); }, 2000); return; }
     if (users.some(function(u) { return u.pin === newEmp.pin; })) { setToast("이미 사용 중인 PIN"); setTimeout(function() { setToast(""); }, 2000); return; }
-    var ne = { id: "emp_" + Date.now(), name: newEmp.name.trim(), role: "employee", pin: newEmp.pin, phone: newEmp.phone, hireDate: newEmp.hireDate };
+    var ne = { id: "emp_" + Date.now(), name: newEmp.name.trim(), role: "employee", pin: newEmp.pin, phone: newEmp.phone, hireDate: newEmp.hireDate, status: "active" };
     var u = users.concat([ne]);
     setUsers(u); store.set("ft-users", u);
     setNewEmp({ name: "", phone: "", pin: "", hireDate: getToday() });
@@ -1772,10 +1774,24 @@ function AdminEmployee(p) {
     setToast("직원 추가됨"); setTimeout(function() { setToast(""); }, 2000);
   }
 
-  function deleteEmp(id) {
-    var u = users.filter(function(x) { return x.id !== id; });
+  function resignEmp(id) {
+    var u = users.map(function(x) { return x.id === id ? Object.assign({}, x, { status: "resigned" }) : x; });
+    setUsers(u); store.set("ft-users", u);
+    setToast("퇴사 처리 완료"); setTimeout(function() { setToast(""); }, 2000);
+  }
+
+  function permanentDeleteEmp(id) {
+    if (!confirm("영구 삭제하면 직원 목록에서 완전히 숨겨집니다.\n데이터는 보존되지만 복원할 수 없습니다.\n계속하시겠습니까?")) return;
+    var u = users.map(function(x) { return x.id === id ? Object.assign({}, x, { status: "deleted" }) : x; });
     setUsers(u); store.set("ft-users", u);
     setSelId(null);
+    setToast("영구 삭제 완료"); setTimeout(function() { setToast(""); }, 2000);
+  }
+
+  function reactivateEmp(id) {
+    var u = users.map(function(x) { return x.id === id ? Object.assign({}, x, { status: "active" }) : x; });
+    setUsers(u); store.set("ft-users", u);
+    setToast("복원 완료"); setTimeout(function() { setToast(""); }, 2000);
   }
 
   function getES(id, field) {
@@ -1889,7 +1905,7 @@ function AdminEmployee(p) {
           <div style={{ display: "grid", gridTemplateColumns: "52px 28px repeat(6, " + (schEdit ? "72px" : "64px") + ")", gap: 3, fontSize: 10, minWidth: schEdit ? 510 : 470 }}>
             <div /><div />
             {dayLabels.map(function(d) { return <div key={d} style={{ textAlign: "center", fontWeight: 700, color: "#71717a", padding: "4px 0" }}>{d}</div>; })}
-            {emps.map(function(emp) {
+            {allEmps.filter(function(u) { return (u.status || "active") === "active"; }).map(function(emp) {
               var sch = (schedules || {})[emp.id] || {};
               var mainRow = [
                 <div key={emp.id + "_n"} style={{ fontWeight: 600, color: "#18181b", fontSize: 11, gridRow: "span 2", display: "flex", alignItems: "center" }}>{emp.name}</div>,
@@ -1919,18 +1935,35 @@ function AdminEmployee(p) {
           </div>
         </div>
       </div>
-      {/* 직원 목록 */}
-      <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 10px" }}>👥 직원 목록</p>
+      {/* 직원 필터 + 목록 */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 0 10px" }}>
+        <p style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>👥 직원 목록</p>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[{ k: "all", l: "전체" }, { k: "active", l: "재직" }, { k: "resigned", l: "퇴사" }].map(function(f) {
+            return (
+              <button key={f.k} onClick={function() { setEmpFilter(f.k); }}
+                style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 10 }, empFilter === f.k ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>
+                {f.l}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {emps.length === 0 && <div style={{ textAlign: "center", padding: 32, color: "#a1a1aa", fontSize: 13 }}>{empFilter === "resigned" ? "퇴사 직원이 없습니다" : "직원이 없습니다"}</div>}
       {emps.map(function(emp) {
         var isOpen = selId === emp.id;
         var vn = vehicles[emp.id] || "";
+        var empStatus = emp.status || "active";
+        var isResigned = empStatus === "resigned";
         return (
-          <div key={emp.id} style={Object.assign({}, CS, { marginBottom: 8, padding: 0 })}>
+          <div key={emp.id} style={Object.assign({}, CS, { marginBottom: 8, padding: 0 }, isResigned ? { opacity: 0.75 } : {})}>
             <div onClick={function() { setSelId(isOpen ? null : emp.id); }}
               style={{ padding: "12px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 14, fontWeight: 700 }}>{emp.name}</span>
-                <span style={{ fontSize: 10, fontWeight: 600, marginLeft: 8, padding: "2px 6px", borderRadius: 4, background: "#f4f4f5", color: "#71717a" }}>직원</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: isResigned ? "#fef2f2" : "#dcfce7", color: isResigned ? "#e1360a" : "#16a34a" }}>
+                  {isResigned ? "🔴 퇴사" : "🟢 재직"}
+                </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {vn && <span style={{ fontSize: 10, color: "#e1360a", fontWeight: 600 }}>{vn}</span>}
@@ -1958,10 +1991,24 @@ function AdminEmployee(p) {
                     style={Object.assign({}, BP, { flex: 1, fontSize: 12 })}>
                     💵 급여 관리
                   </button>
-                  <button onClick={function() { deleteEmp(emp.id); }}
-                    style={Object.assign({}, BO, { padding: "8px 12px", fontSize: 12, color: "#e1360a", borderColor: "#f5c6c0" })}>
-                    삭제
-                  </button>
+                  {(emp.status || "active") === "active" && (
+                    <button onClick={function() { resignEmp(emp.id); }}
+                      style={Object.assign({}, BO, { padding: "8px 12px", fontSize: 12, color: "#e1360a", borderColor: "#f5c6c0" })}>
+                      퇴사처리
+                    </button>
+                  )}
+                  {(emp.status || "active") === "resigned" && (
+                    <button onClick={function() { reactivateEmp(emp.id); }}
+                      style={Object.assign({}, BO, { padding: "8px 12px", fontSize: 12, color: "#16a34a", borderColor: "#bbf7d0" })}>
+                      복원
+                    </button>
+                  )}
+                  {(emp.status || "active") === "resigned" && (
+                    <button onClick={function() { permanentDeleteEmp(emp.id); }}
+                      style={Object.assign({}, BO, { padding: "8px 12px", fontSize: 12, color: "#a1a1aa", borderColor: "#e4e4e7" })}>
+                      영구삭제
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -1998,7 +2045,7 @@ function AdminEmployee(p) {
 
 function AdminReport(p) {
   var reports = p.reports, setReports = p.setReports, users = p.users, settings = p.settings;
-  var employees = users.filter(function(u) { return u.role === "employee"; });
+  var employees = users.filter(function(u) { return u.role === "employee" && (u.status || "active") !== "deleted"; });
   var r1 = useState(employees.length > 0 ? employees[0].id : null), selEmpId = r1[0], setSelEmpId = r1[1];
   var r2 = useState(null), selKey = r2[0], setSelKey = r2[1];
   var r3 = useState(null), selDate = r3[0], setSelDate = r3[1];
@@ -2177,10 +2224,11 @@ function AdminReport(p) {
       <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         {employees.map(function(emp) {
           var isActive = selEmpId === emp.id;
+          var isResigned = (emp.status || "active") === "resigned";
           return (
             <button key={emp.id} onClick={function() { setSelEmpId(emp.id); setShow(10); }}
-              style={Object.assign({}, BO, { padding: "6px 14px", fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }, isActive ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>
-              {emp.name}
+              style={Object.assign({}, BO, { padding: "6px 14px", fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }, isActive ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {}, isResigned && !isActive ? { opacity: 0.6 } : {})}>
+              {emp.name}{isResigned ? " (퇴사)" : ""}
             </button>
           );
         })}
@@ -2245,7 +2293,17 @@ function App() {
       store.get("ft-fixed-costs", []), store.get("ft-variable-costs", []),
       store.get("ft-production", []), store.get("ft-prod-settings", {})
     ]).then(function(res) {
-      if (res[0]) setUsers(res[0]); else store.set("ft-users", DEFAULT_USERS);
+      if (res[0]) {
+        var needsMigration = false;
+        var migrated = res[0].map(function(u) {
+          if (!u.status) { needsMigration = true; return Object.assign({}, u, { status: "active" }); }
+          return u;
+        });
+        setUsers(migrated);
+        if (needsMigration) store.set("ft-users", migrated);
+      } else {
+        store.set("ft-users", DEFAULT_USERS);
+      }
       setSettings(res[1]); setAttendance(res[2]); setReports(res[3]);
       setInventoryItems(res[4]); setInventoryStock(res[5]); setRequests(res[6]);
       setGasData(res[7]); setSchedules(res[8]);
@@ -2256,7 +2314,7 @@ function App() {
   }, []);
 
   function login(pin) {
-    var emp = users.find(function(e) { return e.pin === pin; });
+    var emp = users.find(function(e) { return e.pin === pin && (e.status || "active") === "active"; });
     if (emp) { setUser(emp); setTab(emp.role === "admin" ? "admin-home" : "vehicle"); return true; }
     return false;
   }
