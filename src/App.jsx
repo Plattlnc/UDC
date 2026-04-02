@@ -2308,7 +2308,7 @@ function App() {
       store.get("ft-fixed-costs", []), store.get("ft-variable-costs", []),
       store.get("ft-production", []), store.get("ft-prod-settings", {})
     ]).then(function(res) {
-      if (res[0]) {
+      if (res[0] && Array.isArray(res[0]) && res[0].length > 0) {
         var needsMigration = false;
         var migrated = res[0].map(function(u) {
           if (!u.status) { needsMigration = true; return Object.assign({}, u, { status: "active" }); }
@@ -2316,8 +2316,6 @@ function App() {
         });
         setUsers(migrated);
         if (needsMigration) store.set("ft-users", migrated);
-      } else {
-        store.set("ft-users", DEFAULT_USERS);
       }
       setSettings(res[1]); setAttendance(res[2]); setReports(res[3]);
       setInventoryItems(res[4]); setInventoryStock(res[5]); setRequests(res[6]);
