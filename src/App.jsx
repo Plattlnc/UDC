@@ -2255,7 +2255,7 @@ function AdminReport(p) {
           </div>
         </div>
         {editing && <button onClick={save} style={Object.assign({}, BP, { marginBottom: 8 })}>수정 저장</button>}
-        {editing && <button onClick={deleteReport} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 13, color: "#e1360a", borderColor: "#f5c6c0" })}>🗑 일보 삭제</button>}
+        <button onClick={deleteReport} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 13, color: "#e1360a", borderColor: "#f5c6c0", marginTop: editing ? 0 : 8 })}>🗑 일보 삭제</button>
         <Toast msg={toast} />
       </div>
     );
