@@ -2061,7 +2061,7 @@ function AdminEmployee(p) {
 function AdminReport(p) {
   var reports = p.reports, setReports = p.setReports, users = p.users, settings = p.settings;
   var employees = users.filter(function(u) { return u.role === "employee"; });
-  var r1 = useState(employees.length > 0 ? employees[0].id : null), selEmpId = r1[0], setSelEmpId = r1[1];
+  var r1 = useState(null), selEmpId = r1[0], setSelEmpId = r1[1];
   var r2 = useState(null), selKey = r2[0], setSelKey = r2[1];
   var r3 = useState(null), selDate = r3[0], setSelDate = r3[1];
   var r4 = useState(10), show = r4[0], setShow = r4[1];
@@ -2138,6 +2138,34 @@ function AdminReport(p) {
     setSelDate(null);
     setEditing(false);
   }
+
+  function goBackToCards() {
+    setSelEmpId(null);
+    setSelKey(null);
+    setSelDate(null);
+    setEditing(false);
+    setShow(10);
+  }
+
+  var empStats = useMemo(function() {
+    var m = {};
+    var price = settings.pricePerUnit || 5000;
+    employees.forEach(function(emp) { m[emp.id] = { count: 0, totalSold: 0, totalRev: 0 }; });
+    Object.entries(reports).forEach(function(e) {
+      var dr = e[1];
+      Object.entries(dr).forEach(function(re) {
+        var r = re[1];
+        var uid = r.userId || re[0];
+        if (m[uid] && r.savedAt) {
+          var sold = (Number(r.sunsal) || 0) + (Number(r.padak) || 0);
+          m[uid].count++;
+          m[uid].totalSold += sold;
+          m[uid].totalRev += sold * price;
+        }
+      });
+    });
+    return m;
+  }, [reports, employees, settings]);
 
   // 상세 보기/수정 화면
   if (selKey !== null && selDate !== null) {
@@ -2233,57 +2261,97 @@ function AdminReport(p) {
     );
   }
 
-  // 목록 화면
+  // 직원 선택 → 일보 리스트
+  if (selEmpId && selEmp) {
+    return (
+      <div style={PAGE}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <button onClick={goBackToCards} style={Object.assign({}, BO, { padding: "6px 12px", fontSize: 12 })}>← 직원 목록</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <p style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{selEmp.name}</p>
+            {(selEmp.status || "active") !== "active" && (
+              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: (selEmp.status || "active") === "resigned" ? "#fef2f2" : "#f4f4f5", color: (selEmp.status || "active") === "resigned" ? "#e1360a" : "#a1a1aa" }}>
+                {(selEmp.status || "active") === "resigned" ? "퇴사" : "삭제됨"}
+              </span>
+            )}
+          </div>
+        </div>
+        <div style={Object.assign({}, CS, { padding: "10px 14px", marginBottom: 10, background: "#fff8f6" })}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#71717a" }}>총 {list.length}건</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: "#e1360a" }}>{formatCurrency((empStats[selEmpId] || {}).totalRev || 0)}</span>
+          </div>
+        </div>
+        {list.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 48, color: "#a1a1aa", fontSize: 13 }}>작성된 일보가 없습니다</div>
+        ) : list.slice(0, show).map(function(item, i) {
+          return (
+            <div key={i} onClick={function() { openReport(item.date, item.rk); }} style={Object.assign({}, CS, { marginBottom: 8, padding: "14px 16px", cursor: "pointer" })}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{formatDate(item.date)}</p>
+                  <p style={{ fontSize: 11, color: "#a1a1aa", margin: "4px 0 0" }}>출고 {(Number(item.ship_sunsal) || 0) + (Number(item.ship_padak) || 0)} · 판매 {item.sold} · 로스 {item.loss}</p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(item.rev)}</p>
+                  <p style={{ fontSize: 10, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(item.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {show < list.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 12, color: "#71717a" })}>더 보기</button>}
+        <Toast msg={toast} />
+      </div>
+    );
+  }
+
+  // 직원 프로필 카드 화면
+  var activeEmps = employees.filter(function(u) { return (u.status || "active") === "active"; });
+  var inactiveEmps = employees.filter(function(u) { return (u.status || "active") !== "active"; });
+
   return (
     <div style={PAGE}>
-      <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-        {employees.map(function(emp) {
-          var isActive = selEmpId === emp.id;
-          var empStatus = emp.status || "active";
-          var isInactive = empStatus !== "active";
-          var statusLabel = empStatus === "resigned" ? " (퇴사)" : empStatus === "deleted" ? " (삭제)" : "";
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        {activeEmps.map(function(emp) {
+          var st = empStats[emp.id] || { count: 0, totalSold: 0, totalRev: 0 };
           return (
-            <button key={emp.id} onClick={function() { setSelEmpId(emp.id); setShow(10); }}
-              style={Object.assign({}, BO, { padding: "6px 14px", fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }, isActive ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {}, isInactive && !isActive ? { opacity: 0.5, borderStyle: "dashed" } : {})}>
-              {emp.name}{statusLabel}
-            </button>
+            <div key={emp.id} onClick={function() { setSelEmpId(emp.id); setShow(10); }}
+              style={Object.assign({}, CS, { padding: "20px 14px", textAlign: "center", cursor: "pointer", marginBottom: 0 })}>
+              <div style={{ width: 44, height: 44, borderRadius: 22, background: "#e1360a", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 8px" }}>
+                <span style={{ fontSize: 18, color: "#fff", fontWeight: 800 }}>{emp.name.charAt(0)}</span>
+              </div>
+              <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 2px", color: "#18181b" }}>{emp.name}</p>
+              <p style={{ fontSize: 11, color: "#a1a1aa", margin: "0 0 8px" }}>일보 {st.count}건</p>
+              <p style={{ fontSize: 13, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(st.totalRev)}</p>
+            </div>
           );
         })}
       </div>
-      {selEmp && (
-        <div style={Object.assign({}, CS, { padding: "10px 14px", marginBottom: 10, background: "#fff8f6" })}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "#e1360a", margin: 0 }}>👤 {selEmp.name}</p>
-              {(selEmp.status || "active") !== "active" && (
-                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: (selEmp.status || "active") === "resigned" ? "#fef2f2" : "#f4f4f5", color: (selEmp.status || "active") === "resigned" ? "#e1360a" : "#a1a1aa" }}>
-                  {(selEmp.status || "active") === "resigned" ? "퇴사" : "삭제됨"}
-                </span>
-              )}
-            </div>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "#71717a", margin: 0 }}>총 {list.length}건</p>
+      {inactiveEmps.length > 0 && (
+        <div>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#a1a1aa", margin: "8px 0 8px" }}>퇴사 · 삭제 직원</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {inactiveEmps.map(function(emp) {
+              var st = empStats[emp.id] || { count: 0, totalSold: 0, totalRev: 0 };
+              var empStatus = emp.status || "active";
+              return (
+                <div key={emp.id} onClick={function() { setSelEmpId(emp.id); setShow(10); }}
+                  style={Object.assign({}, CS, { padding: "20px 14px", textAlign: "center", cursor: "pointer", marginBottom: 0, opacity: 0.6, borderStyle: "dashed" })}>
+                  <div style={{ width: 44, height: 44, borderRadius: 22, background: "#a1a1aa", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 8px" }}>
+                    <span style={{ fontSize: 18, color: "#fff", fontWeight: 800 }}>{emp.name.charAt(0)}</span>
+                  </div>
+                  <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 2px", color: "#18181b" }}>{emp.name}</p>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: empStatus === "resigned" ? "#fef2f2" : "#f4f4f5", color: empStatus === "resigned" ? "#e1360a" : "#a1a1aa" }}>
+                    {empStatus === "resigned" ? "퇴사" : "삭제됨"}
+                  </span>
+                  <p style={{ fontSize: 11, color: "#a1a1aa", margin: "6px 0 0" }}>일보 {st.count}건</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
-      {list.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 48, color: "#a1a1aa", fontSize: 13 }}>작성된 일보가 없습니다</div>
-      ) : list.slice(0, show).map(function(item, i) {
-        return (
-          <div key={i} onClick={function() { openReport(item.date, item.rk); }} style={Object.assign({}, CS, { marginBottom: 8, padding: "14px 16px", cursor: "pointer" })}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{formatDate(item.date)}</p>
-                <p style={{ fontSize: 11, color: "#a1a1aa", margin: "4px 0 0" }}>출고 {(Number(item.ship_sunsal) || 0) + (Number(item.ship_padak) || 0)} · 판매 {item.sold} · 로스 {item.loss}</p>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <p style={{ fontSize: 16, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(item.rev)}</p>
-                <p style={{ fontSize: 10, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(item.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-      {show < list.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 12, color: "#71717a" })}>더 보기</button>}
       <Toast msg={toast} />
     </div>
   );
