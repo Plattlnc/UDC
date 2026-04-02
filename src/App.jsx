@@ -1996,6 +1996,228 @@ function AdminEmployee(p) {
 }
 
 
+function AdminReport(p) {
+  var reports = p.reports, setReports = p.setReports, users = p.users, settings = p.settings;
+  var employees = users.filter(function(u) { return u.role === "employee"; });
+  var r1 = useState(employees.length > 0 ? employees[0].id : null), selEmpId = r1[0], setSelEmpId = r1[1];
+  var r2 = useState(null), selKey = r2[0], setSelKey = r2[1];
+  var r3 = useState(null), selDate = r3[0], setSelDate = r3[1];
+  var r4 = useState(10), show = r4[0], setShow = r4[1];
+  var r5 = useState(""), toast = r5[0], setToast = r5[1];
+  var emptyForm = { clockIn: "", clockOut: "", ship_sunsal: "", ship_padak: "", sunsal: "", padak: "", loss: "", chobeol: "", transfer: "", cash: "" };
+  var r6 = useState(emptyForm), formData = r6[0], setFormData = r6[1];
+  var r7 = useState(false), editing = r7[0], setEditing = r7[1];
+
+  var selEmp = users.find(function(u) { return u.id === selEmpId; });
+
+  var list = useMemo(function() {
+    if (!selEmpId) return [];
+    var l = [];
+    Object.entries(reports).forEach(function(e) {
+      var date = e[0], dr = e[1];
+      Object.entries(dr).forEach(function(re) {
+        var rk = re[0], r = re[1];
+        var uid = r.userId || rk;
+        if (uid === selEmpId && r.savedAt) {
+          var sold = (Number(r.sunsal) || 0) + (Number(r.padak) || 0);
+          l.push({ date: date, rk: rk, sold: sold, rev: sold * (settings.pricePerUnit || 5000), savedAt: r.savedAt, ship_sunsal: r.ship_sunsal || 0, ship_padak: r.ship_padak || 0, sunsal: r.sunsal || 0, padak: r.padak || 0, loss: r.loss || 0, employeeName: r.employeeName || "" });
+        }
+      });
+    });
+    l.sort(function(a, b) { return (b.date + b.savedAt).localeCompare(a.date + a.savedAt); });
+    return l;
+  }, [reports, selEmpId, settings]);
+
+  function openReport(date, rk) {
+    var ex = reports[date] ? reports[date][rk] : null;
+    if (ex) {
+      setFormData({ clockIn: ex.clockIn || "", clockOut: ex.clockOut || "", ship_sunsal: ex.ship_sunsal || "", ship_padak: ex.ship_padak || "", sunsal: ex.sunsal || "", padak: ex.padak || "", loss: ex.loss || "", chobeol: ex.chobeol || "", transfer: ex.transfer || "", cash: ex.cash || "" });
+      setEditing(false);
+    }
+    setSelDate(date);
+    setSelKey(rk);
+  }
+
+  function up(k, v) {
+    var obj = Object.assign({}, formData);
+    obj[k] = v;
+    setFormData(obj);
+  }
+
+  function save() {
+    var u = JSON.parse(JSON.stringify(reports));
+    if (!u[selDate]) u[selDate] = {};
+    var ex = u[selDate][selKey] || {};
+    u[selDate][selKey] = Object.assign({}, ex, formData, { savedAt: new Date().toISOString() });
+    setReports(u);
+    store.set("ft-reports", u);
+    setEditing(false);
+    setToast("수정 완료!");
+    setTimeout(function() { setToast(""); }, 2000);
+  }
+
+  function deleteReport() {
+    if (!confirm("이 일보를 삭제하시겠습니까?")) return;
+    var u = JSON.parse(JSON.stringify(reports));
+    if (u[selDate] && u[selDate][selKey]) {
+      delete u[selDate][selKey];
+      if (Object.keys(u[selDate]).length === 0) delete u[selDate];
+    }
+    setReports(u);
+    store.set("ft-reports", u);
+    setSelKey(null);
+    setSelDate(null);
+    setToast("삭제 완료!");
+    setTimeout(function() { setToast(""); }, 2000);
+  }
+
+  function goBack() {
+    setSelKey(null);
+    setSelDate(null);
+    setEditing(false);
+  }
+
+  // 상세 보기/수정 화면
+  if (selKey !== null && selDate !== null) {
+    var shipped = (Number(formData.ship_sunsal) || 0) + (Number(formData.ship_padak) || 0);
+    var sold = (Number(formData.sunsal) || 0) + (Number(formData.padak) || 0);
+    var rem = shipped - sold - (Number(formData.loss) || 0);
+    var rev = sold * (settings.pricePerUnit || 5000);
+
+    return (
+      <div style={PAGE}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <button onClick={goBack} style={Object.assign({}, BO, { padding: "6px 12px", fontSize: 12 })}>← 목록</button>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "#18181b", margin: 0 }}>📅 {formatDate(selDate)}</p>
+          {!editing ? <button onClick={function() { setEditing(true); }} style={Object.assign({}, BO, { padding: "4px 14px", fontSize: 12 })}>수정</button> : <div style={{ width: 48 }} />}
+        </div>
+        <div style={Object.assign({}, CS, { padding: "10px 14px", marginBottom: 10, background: "#fff8f6" })}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#e1360a", margin: 0 }}>👤 {selEmp ? selEmp.name : ""}</p>
+        </div>
+        <div style={Object.assign({}, CS, { padding: 14, marginBottom: 10 })}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, margin: "0 0 10px" }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#18181b", margin: 0 }}>🕐 출퇴근</p>
+            {formData.clockIn && formData.clockOut && (function() {
+              var ci = formData.clockIn.split(":");
+              var co = formData.clockOut.split(":");
+              var mins = (Number(co[0]) * 60 + Number(co[1])) - (Number(ci[0]) * 60 + Number(ci[1]));
+              if (mins < 0) mins += 1440;
+              var h = Math.floor(mins / 60);
+              var m = mins % 60;
+              return <span style={{ fontSize: 12, fontWeight: 700, color: "#e1360a", opacity: 0.7 }}>{h}시간 {m}분</span>;
+            })()}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={LS}>출근</label>
+              <input type="time" value={formData.clockIn} disabled={!editing}
+                onChange={function(e) { up("clockIn", e.target.value); }}
+                style={Object.assign({}, IS, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
+            </div>
+            <div>
+              <label style={LS}>퇴근</label>
+              <input type="time" value={formData.clockOut} disabled={!editing}
+                onChange={function(e) { up("clockOut", e.target.value); }}
+                style={Object.assign({}, IS, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
+            </div>
+          </div>
+        </div>
+        <div style={Object.assign({}, CS, { padding: 14, marginBottom: 10 })}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, margin: "0 0 10px" }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#18181b", margin: 0 }}>📤 출고</p>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#18181b", opacity: 0.35 }}>{shipped}개</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <NumInput label="순살" value={formData.ship_sunsal} onChange={function(v) { up("ship_sunsal", v); }} disabled={!editing} suffix="개" />
+            <NumInput label="파닭" value={formData.ship_padak} onChange={function(v) { up("ship_padak", v); }} disabled={!editing} suffix="개" />
+          </div>
+        </div>
+        <div style={Object.assign({}, CS, { padding: 14, marginBottom: 10 })}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, margin: "0 0 10px" }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#18181b", margin: 0 }}>🧾 판매</p>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#e1360a", background: "#fff8f6", padding: "2px 8px", borderRadius: 6 }}>{sold}개</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <NumInput label="순살" value={formData.sunsal} onChange={function(v) { up("sunsal", v); }} disabled={!editing} suffix="개" />
+            <NumInput label="파닭" value={formData.padak} onChange={function(v) { up("padak", v); }} disabled={!editing} suffix="개" />
+            <NumInput label="로스" value={formData.loss} onChange={function(v) { up("loss", v); }} disabled={!editing} suffix="개" />
+          </div>
+        </div>
+        <div style={Object.assign({}, CS, { padding: 14, marginBottom: 10 })}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "#18181b", margin: "0 0 10px" }}>📊 잔여</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={LS}>출고-판매-로스 (자동)</label>
+              <div style={{ padding: "8px 12px", borderRadius: 8, background: "#f4f4f5", border: "1px solid #e4e4e7", fontSize: 16, fontWeight: 800, color: rem < 0 ? "#e1360a" : "#18181b" }}>{rem} 개</div>
+            </div>
+            <NumInput label="초벌" value={formData.chobeol} onChange={function(v) { up("chobeol", v); }} disabled={!editing} suffix="개" />
+          </div>
+        </div>
+        <div style={Object.assign({}, CS, { padding: 14, marginBottom: 10 })}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "#18181b", margin: "0 0 10px" }}>💰 매출</p>
+          <div style={{ marginBottom: 10 }}>
+            <label style={LS}>총 매출 (자동)</label>
+            <div style={{ padding: "8px 12px", borderRadius: 8, background: "#fff8f6", border: "1px solid #f5c6c0", fontSize: 16, fontWeight: 800, color: "#e1360a" }}>{formatCurrency(rev)}</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <NumInput label="계좌이체" value={formData.transfer} onChange={function(v) { up("transfer", v); }} disabled={!editing} suffix="원" />
+            <NumInput label="현금" value={formData.cash} onChange={function(v) { up("cash", v); }} disabled={!editing} suffix="원" />
+          </div>
+        </div>
+        {editing && <button onClick={save} style={Object.assign({}, BP, { marginBottom: 8 })}>수정 저장</button>}
+        {editing && <button onClick={deleteReport} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 13, color: "#e1360a", borderColor: "#f5c6c0" })}>🗑 일보 삭제</button>}
+        <Toast msg={toast} />
+      </div>
+    );
+  }
+
+  // 목록 화면
+  return (
+    <div style={PAGE}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        {employees.map(function(emp) {
+          var isActive = selEmpId === emp.id;
+          return (
+            <button key={emp.id} onClick={function() { setSelEmpId(emp.id); setShow(10); }}
+              style={Object.assign({}, BO, { padding: "6px 14px", fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }, isActive ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>
+              {emp.name}
+            </button>
+          );
+        })}
+      </div>
+      {selEmp && (
+        <div style={Object.assign({}, CS, { padding: "10px 14px", marginBottom: 10, background: "#fff8f6" })}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#e1360a", margin: 0 }}>👤 {selEmp.name}</p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "#71717a", margin: 0 }}>총 {list.length}건</p>
+          </div>
+        </div>
+      )}
+      {list.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 48, color: "#a1a1aa", fontSize: 13 }}>작성된 일보가 없습니다</div>
+      ) : list.slice(0, show).map(function(item, i) {
+        return (
+          <div key={i} onClick={function() { openReport(item.date, item.rk); }} style={Object.assign({}, CS, { marginBottom: 8, padding: "14px 16px", cursor: "pointer" })}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{formatDate(item.date)}</p>
+                <p style={{ fontSize: 11, color: "#a1a1aa", margin: "4px 0 0" }}>출고 {(Number(item.ship_sunsal) || 0) + (Number(item.ship_padak) || 0)} · 판매 {item.sold} · 로스 {item.loss}</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(item.rev)}</p>
+                <p style={{ fontSize: 10, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(item.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {show < list.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 12, color: "#71717a" })}>더 보기</button>}
+      <Toast msg={toast} />
+    </div>
+  );
+}
+
+
 function App() {
   var r1 = useState(null), user = r1[0], setUser = r1[1];
   var r2 = useState("vehicle"), tab = r2[0], setTab = r2[1];
@@ -2044,8 +2266,8 @@ function App() {
 
   var isAdmin = user.role === "admin";
   var eTabs = [{ id: "vehicle", label: "내차량", icon: "🚛" }, { id: "inventory", label: "재고", icon: "📦" }, { id: "report", label: "일보", icon: "📋" }, { id: "salary", label: "급여", icon: "💵" }, { id: "revenue", label: "매출", icon: "💰" }];
-  var aTabs = [{ id: "admin-home", label: "홈", icon: "🏠" }, { id: "admin-finance", label: "재무", icon: "💰" }, { id: "admin-chicken", label: "꼬치", icon: "🍗" }, { id: "admin-inv", label: "재고", icon: "📦" }, { id: "admin-emp", label: "직원", icon: "👥" }];
-  var titles = { vehicle: "내 차량", report: "판매일보", salary: "급여", inventory: "재고", revenue: "매출", "admin-home": "홈", "admin-finance": "재무", "admin-chicken": "꼬치 관리", "admin-inv": "재고 관리", "admin-emp": "직원 관리" };
+  var aTabs = [{ id: "admin-home", label: "홈", icon: "🏠" }, { id: "admin-report", label: "일보", icon: "📋" }, { id: "admin-finance", label: "재무", icon: "💰" }, { id: "admin-chicken", label: "꼬치", icon: "🍗" }, { id: "admin-inv", label: "재고", icon: "📦" }, { id: "admin-emp", label: "직원", icon: "👥" }];
+  var titles = { vehicle: "내 차량", report: "판매일보", salary: "급여", inventory: "재고", revenue: "매출", "admin-home": "홈", "admin-report": "직원 일보", "admin-finance": "재무", "admin-chicken": "꼬치 관리", "admin-inv": "재고 관리", "admin-emp": "직원 관리" };
 
   return (
     <div style={{ minHeight: "100vh", background: "#fafafa", maxWidth: 480, margin: "0 auto" }}>
@@ -2056,6 +2278,7 @@ function App() {
       {!isAdmin && tab === "inventory" && <EmpInventory user={user} inventoryItems={inventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} />}
       {!isAdmin && tab === "revenue" && <EmpRevenue user={user} reports={reports} settings={settings} />}
       {isAdmin && tab === "admin-home" && <AdminHome reports={reports} users={users} settings={settings} production={production} />}
+      {isAdmin && tab === "admin-report" && <AdminReport reports={reports} setReports={setReports} users={users} settings={settings} />}
       {isAdmin && tab === "admin-finance" && <AdminFinance reports={reports} settings={settings} production={production} fixedCosts={fixedCosts} setFixedCosts={setFixedCosts} varCosts={varCosts} setVarCosts={setVarCosts} prodSettings={prodSettings} users={users} />}
       {isAdmin && tab === "admin-chicken" && <AdminChicken production={production} setProduction={setProduction} prodSettings={prodSettings} setProdSettings={setProdSettings} reports={reports} />}
       {isAdmin && tab === "admin-inv" && <AdminInventory inventoryItems={inventoryItems} setInventoryItems={setInventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} users={users} />}
