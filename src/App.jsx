@@ -832,8 +832,9 @@ function EmpRevenue(p) {
 function EmpSalary(p) {
   var user = p.user, reports = p.reports, settings = p.settings;
   var r1 = useState(20), show = r1[0], setShow = r1[1];
-  var hw = settings.hourlyWage || 10000;
-  var sb = settings.salesBonus || 1400;
+  var empSettings = settings.empSettings || {};
+  var hw = empSettings[user.id] && empSettings[user.id].hourlyWage !== undefined ? empSettings[user.id].hourlyWage : (settings.hourlyWage || 10000);
+  var sb = empSettings[user.id] && empSettings[user.id].salesBonus !== undefined ? empSettings[user.id].salesBonus : (settings.salesBonus || 1400);
 
   var now = new Date();
   var thisMonthKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
@@ -1136,14 +1137,21 @@ function AdminFinance(p) {
   var totalFixed = fixedCosts.reduce(function(a, c) { return a + (Number(c.amount) || 0); }, 0);
   var monthVar = varCosts.filter(function(v) { return v.date && v.date.substring(0, 7) === thisMonthKey; }).reduce(function(a, c) { return a + (Number(c.amount) || 0); }, 0);
 
+  var empSettings = settings.empSettings || {};
+  function getEmpSetting(uid, field, fallback) {
+    return empSettings[uid] && empSettings[uid][field] !== undefined ? empSettings[uid][field] : (settings[field] || fallback);
+  }
+
   var monthSalary = useMemo(function() {
     var total = 0;
-    var hw = settings.hourlyWage || 10000;
-    var sb = settings.salesBonus || 1400;
     Object.entries(reports).forEach(function(e) {
       if (e[0].substring(0, 7) === thisMonthKey) {
-        Object.values(e[1]).forEach(function(r) {
+        Object.entries(e[1]).forEach(function(re) {
+          var r = re[1];
           if (r.savedAt) {
+            var uid = r.userId || re[0];
+            var hw = getEmpSetting(uid, "hourlyWage", 10000);
+            var sb = getEmpSetting(uid, "salesBonus", 1400);
             var sold = (Number(r.sunsal) || 0) + (Number(r.padak) || 0);
             var mins = 0;
             if (r.clockIn && r.clockOut) {
@@ -1151,7 +1159,8 @@ function AdminFinance(p) {
               mins = (Number(b[0]) * 60 + Number(b[1])) - (Number(a[0]) * 60 + Number(a[1]));
               if (mins < 0) mins += 1440;
             }
-            total += Math.max(Math.round(mins / 60 * hw), sold * sb);
+            var pay = r.payOverride !== undefined ? r.payOverride : Math.max(Math.round(mins / 60 * hw), sold * sb);
+            total += pay;
           }
         });
       }
