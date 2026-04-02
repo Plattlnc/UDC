@@ -1018,9 +1018,15 @@ function AdminHome(p) {
           <input type="date" value={selDay} onChange={function(e) { setSelDay(e.target.value); }}
             style={Object.assign({}, IS, { width: "auto", padding: "4px 10px", fontSize: 12 })} />
         </div>
-        <div style={{ display: "flex", gap: 16 }}>
-          <div><p style={{ fontSize: 11, color: "#71717a", margin: "0 0 2px" }}>매출</p><p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(stats.dRev)}</p></div>
-          <div><p style={{ fontSize: 11, color: "#71717a", margin: "0 0 2px" }}>판매</p><p style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{stats.dSold}<span style={{ fontSize: 12, color: "#a1a1aa" }}> 개</span></p></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <p style={{ fontSize: 11, color: "#71717a", margin: "0 0 4px" }}>매출</p>
+            <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(stats.dRev)}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: 11, color: "#71717a", margin: "0 0 4px" }}>판매</p>
+            <p style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{stats.dSold}<span style={{ fontSize: 12, color: "#a1a1aa" }}> 개</span></p>
+          </div>
         </div>
       </div>
       <div style={Object.assign({}, CS, { padding: 14 })}>
