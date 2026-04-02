@@ -2399,14 +2399,61 @@ function App() {
       setGasData(res[7]); setSchedules(res[8]);
       setFixedCosts(res[9]); setVarCosts(res[10]);
       setProduction(res[11]); setProdSettings(res[12]);
+
+      // 세션 복원
+      try {
+        var session = localStorage.getItem("ft-session");
+        if (session) {
+          var s = JSON.parse(session);
+          var loadedUsers = res[0] && Array.isArray(res[0]) ? res[0] : DEFAULT_USERS;
+          var savedUser = loadedUsers.find(function(u) { return u.id === s.userId && (u.status || "active") === "active"; });
+          if (savedUser) { setUser(savedUser); setTab(s.tab || (savedUser.role === "admin" ? "admin-home" : "vehicle")); }
+        }
+      } catch(e) {}
+
       setLoaded(true);
     });
   }, []);
 
+  // 탭 포커스 시 Supabase에서 최신 데이터 다시 로드
+  useEffect(function() {
+    function reload() {
+      if (document.visibilityState !== "visible") return;
+      Promise.all([
+        store.get("ft-users", null), store.get("ft-settings", DEFAULT_SETTINGS),
+        store.get("ft-reports", {}),
+        store.get("ft-inv-items", []), store.get("ft-inv-stock", {}), store.get("ft-inv-requests", []),
+        store.get("ft-gas", {}), store.get("ft-schedules", {}),
+        store.get("ft-fixed-costs", []), store.get("ft-variable-costs", []),
+        store.get("ft-production", []), store.get("ft-prod-settings", {})
+      ]).then(function(res) {
+        if (res[0] && Array.isArray(res[0]) && res[0].length > 0) setUsers(res[0]);
+        setSettings(res[1]); setReports(res[2]);
+        setInventoryItems(res[3]); setInventoryStock(res[4]); setRequests(res[5]);
+        setGasData(res[6]); setSchedules(res[7]);
+        setFixedCosts(res[8]); setVarCosts(res[9]);
+        setProduction(res[10]); setProdSettings(res[11]);
+      });
+    }
+    document.addEventListener("visibilitychange", reload);
+    return function() { document.removeEventListener("visibilitychange", reload); };
+  }, []);
+
   function login(pin) {
     var emp = users.find(function(e) { return e.pin === pin && (e.status || "active") === "active"; });
-    if (emp) { setUser(emp); setTab(emp.role === "admin" ? "admin-home" : "vehicle"); return true; }
+    if (emp) {
+      setUser(emp);
+      setTab(emp.role === "admin" ? "admin-home" : "vehicle");
+      try { localStorage.setItem("ft-session", JSON.stringify({ userId: emp.id, tab: emp.role === "admin" ? "admin-home" : "vehicle" })); } catch(e) {}
+      return true;
+    }
     return false;
+  }
+
+  function logout() {
+    setUser(null);
+    setTab("vehicle");
+    try { localStorage.removeItem("ft-session"); } catch(e) {}
   }
 
   if (!loaded) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff" }}><p style={{ color: "#a1a1aa" }}>로딩 중...</p></div>;
@@ -2419,7 +2466,7 @@ function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#fafafa", maxWidth: 480, margin: "0 auto" }}>
-      <Header title={titles[tab]} userName={user.name} onLogout={function() { setUser(null); setTab("vehicle"); }} />
+      <Header title={titles[tab]} userName={user.name} onLogout={logout} />
       {!isAdmin && tab === "vehicle" && <EmpVehicle user={user} reports={reports} settings={settings} gasData={gasData} setGasData={setGasData} schedules={schedules} setSchedules={setSchedules} />}
       {!isAdmin && tab === "report" && <EmpReport user={user} reports={reports} setReports={setReports} settings={settings} />}
       {!isAdmin && tab === "salary" && <EmpSalary user={user} reports={reports} settings={settings} />}
