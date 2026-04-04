@@ -1788,6 +1788,29 @@ function AdminInventory(p) {
     return a + (oStock[item.id] || 0) * (item.unitPrice || 0);
   }, 0);
 
+  function delLog(entry) {
+    var nl = invLog.filter(function(l) { return l.id !== entry.id; });
+    setInvLog(nl); store.set("ft-inv-log", nl);
+    var os = Object.assign({}, oStock);
+    if (entry.type === "in") {
+      os[entry.itemId] = Math.max(0, (os[entry.itemId] || 0) - entry.qty);
+    } else {
+      os[entry.itemId] = (os[entry.itemId] || 0) + entry.qty;
+    }
+    setOStock(os); store.set("ft-inv-office", os);
+    if (entry.type === "in" && entry.totalCost > 0) {
+      var vc = varCosts.filter(function(v) { return !(v.category === "재고매입" && v.date === entry.date && Number(v.amount) === entry.totalCost && v.id <= entry.id + 1 && v.id >= entry.id - 1); });
+      if (vc.length === varCosts.length) {
+        vc = varCosts.slice();
+        for (var i = vc.length - 1; i >= 0; i--) {
+          if (vc[i].category === "재고매입" && vc[i].date === entry.date && Number(vc[i].amount) === entry.totalCost) { vc.splice(i, 1); break; }
+        }
+      }
+      setVarCosts(vc); store.set("ft-variable-costs", vc);
+    }
+    showToast("기록 삭제됨");
+  }
+
   var statsData = useMemo(function() {
     var now = new Date();
     var today = getToday();
@@ -1799,7 +1822,7 @@ function AdminInventory(p) {
       if (statsPeriod === "day") return l.date === today;
       if (statsPeriod === "week") return l.date >= weekKey;
       return l.date.substring(0, 7) === monthKey;
-    });
+    }).sort(function(a, b) { return b.id - a.id; });
     var inQty = 0, inAmt = 0, outQty = 0, outAmt = 0;
     var byItem = {};
     filtered.forEach(function(l) {
@@ -1809,7 +1832,7 @@ function AdminInventory(p) {
       if (l.type === "in") { byItem[l.itemId].inQty += l.qty; byItem[l.itemId].inAmt += l.totalCost; }
       else { byItem[l.itemId].outQty += l.qty; byItem[l.itemId].outAmt += l.totalCost; }
     });
-    return { inQty: inQty, inAmt: inAmt, outQty: outQty, outAmt: outAmt, byItem: byItem };
+    return { inQty: inQty, inAmt: inAmt, outQty: outQty, outAmt: outAmt, byItem: byItem, list: filtered };
   }, [invLog, statsPeriod]);
 
   return (
@@ -1982,6 +2005,29 @@ function AdminInventory(p) {
           </div>
         )}
         {Object.keys(statsData.byItem).length === 0 && <p style={{ textAlign: "center", padding: 16, color: "#a1a1aa", fontSize: 12 }}>해당 기간 기록 없음</p>}
+        {statsData.list.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#71717a", margin: "0 0 6px" }}>입출고 기록</p>
+            {statsData.list.map(function(l) {
+              var isIn = l.type === "in";
+              return (
+                <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f4f4f5" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: isIn ? "#16a34a" : "#e1360a", padding: "1px 6px", borderRadius: 4, background: isIn ? "#f0fdf4" : "#fef2f2" }}>{isIn ? "입고" : "출고"}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{l.itemName}</span>
+                      <span style={{ fontSize: 12, fontWeight: 800 }}>{l.qty}개</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: "#a1a1aa", marginTop: 2 }}>
+                      {formatDate(l.date)}{l.empName ? " · " + l.empName : ""}{l.totalCost > 0 ? " · " + formatCurrency(l.totalCost) : ""}
+                    </div>
+                  </div>
+                  <button onClick={function() { delLog(l); }} style={{ border: "none", background: "none", color: "#a1a1aa", fontSize: 12, cursor: "pointer", padding: "4px", flexShrink: 0 }}>✕</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       <Toast msg={toast} />
     </div>
