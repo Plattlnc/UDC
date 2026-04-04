@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { store } from "./supabase.js";
+import { store, syncToSheets, setSheetsUrl, getSheetsUrl } from "./supabase.js";
 
 var DEFAULT_USERS = [
   { id: "admin1", name: "사장님", role: "admin", pin: "197356", phone: "", hireDate: "", status: "active" },
@@ -951,6 +951,40 @@ function EmpSalary(p) {
 function AdminHome(p) {
   var reports = p.reports, settings = p.settings, production = p.production;
   var r1 = useState(getToday()), selDay = r1[0], setSelDay = r1[1];
+  var rs1 = useState(false), syncing = rs1[0], setSyncing = rs1[1];
+  var rs2 = useState(""), syncMsg = rs2[0], setSyncMsg = rs2[1];
+  var rs3 = useState(false), showSyncSetup = rs3[0], setShowSyncSetup = rs3[1];
+  var rs4 = useState(getSheetsUrl()), sheetsUrl = rs4[0], setSheetsUrl_ = rs4[1];
+
+  function doSync() {
+    setSyncing(true); setSyncMsg("");
+    var payload = {
+      "ft-users": p.users,
+      "ft-reports": reports,
+      "ft-inv-items": p.inventoryItems,
+      "ft-inv-stock": p.inventoryStock,
+      "ft-inv-requests": p.requests,
+      "ft-gas": p.gasData,
+      "ft-schedules": p.schedules,
+      "ft-fixed-costs": p.fixedCosts,
+      "ft-variable-costs": p.varCosts,
+      "ft-production": production,
+      "ft-settings": settings,
+      "ft-prod-settings": p.prodSettings
+    };
+    syncToSheets(payload)
+      .then(function() { setSyncMsg("ok"); })
+      .catch(function() { setSyncMsg("fail"); })
+      .finally(function() {
+        setSyncing(false);
+        setTimeout(function() { setSyncMsg(""); }, 3000);
+      });
+  }
+
+  function saveSheetsUrl() {
+    setSheetsUrl(sheetsUrl);
+    setShowSyncSetup(false);
+  }
   var now = new Date();
   var thisMonthKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
   var weekAgo = new Date(now.getTime() - 7 * 24 * 3600000);
@@ -1088,6 +1122,27 @@ function AdminHome(p) {
           </div>
         );
       })}
+      <div style={Object.assign({}, CS, { marginTop: 16, padding: 16 })}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>Google Sheets 동기화</p>
+          <button onClick={function() { setShowSyncSetup(!showSyncSetup); }} style={Object.assign({}, BO, { fontSize: 11, padding: "4px 10px" })}>{showSyncSetup ? "닫기" : "설정"}</button>
+        </div>
+        {showSyncSetup && (
+          <div style={{ marginBottom: 12 }}>
+            <label style={LS}>Apps Script 웹앱 URL</label>
+            <input type="text" value={sheetsUrl} onChange={function(e) { setSheetsUrl_(e.target.value); }}
+              placeholder="https://script.google.com/macros/s/..." style={Object.assign({}, IS, { fontSize: 12, marginBottom: 8 })} />
+            <button onClick={saveSheetsUrl} style={Object.assign({}, BP, { fontSize: 12, padding: 8 })}>URL 저장</button>
+          </div>
+        )}
+        <button onClick={doSync} disabled={syncing || !getSheetsUrl()}
+          style={Object.assign({}, BP, { fontSize: 13, padding: 10, opacity: (syncing || !getSheetsUrl()) ? 0.5 : 1 })}>
+          {syncing ? "동기화 중..." : "Google Sheets에 동기화"}
+        </button>
+        {syncMsg === "ok" && <p style={{ fontSize: 12, color: "#16a34a", fontWeight: 600, margin: "8px 0 0", textAlign: "center" }}>동기화 완료!</p>}
+        {syncMsg === "fail" && <p style={{ fontSize: 12, color: "#e1360a", fontWeight: 600, margin: "8px 0 0", textAlign: "center" }}>동기화 실패. URL을 확인해주세요.</p>}
+        {!getSheetsUrl() && !showSyncSetup && <p style={{ fontSize: 11, color: "#a1a1aa", margin: "8px 0 0", textAlign: "center" }}>설정에서 Apps Script URL을 먼저 입력하세요</p>}
+      </div>
     </div>
   );
 }
@@ -1096,6 +1151,7 @@ function AdminFinance(p) {
   var fixedCosts = p.fixedCosts, setFixedCosts = p.setFixedCosts;
   var varCosts = p.varCosts, setVarCosts = p.setVarCosts;
   var prodSettings = p.prodSettings;
+  var invLog = p.invLog || [];
   var r1 = useState(""), fcName = r1[0], setFcName = r1[1];
   var r2 = useState(""), fcAmt = r2[0], setFcAmt = r2[1];
   var r3 = useState(""), toast = r3[0], setToast = r3[1];
@@ -1136,6 +1192,8 @@ function AdminFinance(p) {
 
   var totalFixed = fixedCosts.reduce(function(a, c) { return a + (Number(c.amount) || 0); }, 0);
   var monthVar = varCosts.filter(function(v) { return v.date && v.date.substring(0, 7) === thisMonthKey; }).reduce(function(a, c) { return a + (Number(c.amount) || 0); }, 0);
+  var monthInvCost = varCosts.filter(function(v) { return v.date && v.date.substring(0, 7) === thisMonthKey && v.category === "재고매입"; }).reduce(function(a, c) { return a + (Number(c.amount) || 0); }, 0);
+  var monthVarExInv = monthVar - monthInvCost;
 
   var empSettings = settings.empSettings || {};
   function getEmpSetting(uid, field, fallback) {
@@ -1241,7 +1299,11 @@ function AdminFinance(p) {
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f4f4f5" }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: "#71717a" }}>변동비</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#e1360a" }}>-{formatCurrency(monthVar)}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#e1360a" }}>-{formatCurrency(monthVarExInv)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f4f4f5" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#71717a" }}>재고매입</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#e1360a" }}>-{formatCurrency(monthInvCost)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0" }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: "#71717a" }}>급여</span>
@@ -1599,17 +1661,28 @@ function AdminInventory(p) {
   var stock = p.inventoryStock, setStock = p.setInventoryStock;
   var requests = p.requests, setRequests = p.setRequests;
   var users = p.users;
+  var oStock = p.officeStock, setOStock = p.setOfficeStock;
+  var invLog = p.invLog, setInvLog = p.setInvLog;
+  var varCosts = p.varCosts, setVarCosts = p.setVarCosts;
   var r1 = useState(""), newName = r1[0], setNewName = r1[1];
   var r2 = useState(""), toast = r2[0], setToast = r2[1];
+  var r3 = useState(0), newPrice = r3[0], setNewPrice = r3[1];
+  var r4 = useState(null), editPriceId = r4[0], setEditPriceId = r4[1];
+  var r5 = useState(""), editPriceVal = r5[0], setEditPriceVal = r5[1];
+  var r6 = useState(null), recvItemId = r6[0], setRecvItemId = r6[1];
+  var r7 = useState(""), recvQty = r7[0], setRecvQty = r7[1];
+  var r8 = useState("day"), statsPeriod = r8[0], setStatsPeriod = r8[1];
   var emps = users.filter(function(u) { return u.role === "employee" && (u.status || "active") === "active"; });
   var pending = requests.filter(function(r) { return r.status === "pending"; });
 
+  function showToast(msg) { setToast(msg); setTimeout(function() { setToast(""); }, 2000); }
+
   function addItem() {
     if (!newName.trim()) return;
-    var ni = { id: "item_" + Date.now(), name: newName.trim() };
+    var ni = { id: "item_" + Date.now(), name: newName.trim(), unitPrice: Number(newPrice) || 0 };
     var u = items.concat([ni]);
     setItems(u); store.set("ft-inv-items", u);
-    setNewName(""); setToast("품목 추가됨"); setTimeout(function() { setToast(""); }, 2000);
+    setNewName(""); setNewPrice(0); showToast("품목 추가됨");
   }
 
   function delItem(id) {
@@ -1621,10 +1694,38 @@ function AdminInventory(p) {
     var ni = idx + dir;
     if (ni < 0 || ni >= items.length) return;
     var u = items.slice();
-    var tmp = u[idx];
-    u[idx] = u[ni];
-    u[ni] = tmp;
+    var tmp = u[idx]; u[idx] = u[ni]; u[ni] = tmp;
     setItems(u); store.set("ft-inv-items", u);
+  }
+
+  function saveUnitPrice(id) {
+    var u = items.map(function(i) { return i.id === id ? Object.assign({}, i, { unitPrice: Number(editPriceVal) || 0 }) : i; });
+    setItems(u); store.set("ft-inv-items", u);
+    setEditPriceId(null); showToast("단가 수정됨");
+  }
+
+  function addInvLogEntry(itemId, itemName, type, qty, unitPrice, empId, empName) {
+    var entry = { id: Date.now(), date: getToday(), itemId: itemId, itemName: itemName, type: type, qty: qty, unitPrice: unitPrice, totalCost: qty * unitPrice, empId: empId || "", empName: empName || "" };
+    var nl = invLog.concat([entry]);
+    setInvLog(nl); store.set("ft-inv-log", nl);
+    return entry;
+  }
+
+  function receiveStock(itemId) {
+    var qty = Number(recvQty);
+    if (!qty || qty <= 0) return;
+    var item = items.find(function(i) { return i.id === itemId; });
+    if (!item) return;
+    var price = item.unitPrice || 0;
+    var os = Object.assign({}, oStock);
+    os[itemId] = (os[itemId] || 0) + qty;
+    setOStock(os); store.set("ft-inv-office", os);
+    addInvLogEntry(itemId, item.name, "in", qty, price, "", "");
+    if (price > 0) {
+      var vc = varCosts.concat([{ id: Date.now(), date: getToday(), category: "재고매입", amount: qty * price }]);
+      setVarCosts(vc); store.set("ft-variable-costs", vc);
+    }
+    setRecvItemId(null); setRecvQty(""); showToast(item.name + " " + qty + "개 입고 완료");
   }
 
   function handleReq(req, action) {
@@ -1637,28 +1738,78 @@ function AdminInventory(p) {
       if (!s[req.employeeId]) s[req.employeeId] = {};
       s[req.employeeId][req.itemId] = (s[req.employeeId][req.itemId] || 0) + req.qty;
       setStock(s); store.set("ft-inv-stock", s);
+      var os = Object.assign({}, oStock);
+      os[req.itemId] = Math.max(0, (os[req.itemId] || 0) - req.qty);
+      setOStock(os); store.set("ft-inv-office", os);
+      var item = items.find(function(i) { return i.id === req.itemId; });
+      addInvLogEntry(req.itemId, req.itemName, "out", req.qty, item ? (item.unitPrice || 0) : 0, req.employeeId, req.employeeName);
     }
     setRequests(u); store.set("ft-inv-requests", u);
-    setToast(action === "approved" ? "승인 완료" : "거절 완료");
-    setTimeout(function() { setToast(""); }, 2000);
+    showToast(action === "approved" ? "승인 완료" : "거절 완료");
   }
 
   function adjStock(empId, itemId, delta) {
     var s = JSON.parse(JSON.stringify(stock));
     if (!s[empId]) s[empId] = {};
-    s[empId][itemId] = Math.max(0, (s[empId][itemId] || 0) + delta);
+    var newVal = Math.max(0, (s[empId][itemId] || 0) + delta);
+    s[empId][itemId] = newVal;
     setStock(s); store.set("ft-inv-stock", s);
+    var item = items.find(function(i) { return i.id === itemId; });
+    var emp = users.find(function(u) { return u.id === empId; });
+    var iName = item ? item.name : "";
+    var eName = emp ? emp.name : "";
+    var iPrice = item ? (item.unitPrice || 0) : 0;
+    if (delta > 0) {
+      var os = Object.assign({}, oStock);
+      os[itemId] = Math.max(0, (os[itemId] || 0) - delta);
+      setOStock(os); store.set("ft-inv-office", os);
+      addInvLogEntry(itemId, iName, "out", delta, iPrice, empId, eName);
+    } else if (delta < 0) {
+      var os2 = Object.assign({}, oStock);
+      os2[itemId] = (os2[itemId] || 0) + Math.abs(delta);
+      setOStock(os2); store.set("ft-inv-office", os2);
+    }
   }
+
+  var totalOfficeValue = items.reduce(function(a, item) {
+    return a + (oStock[item.id] || 0) * (item.unitPrice || 0);
+  }, 0);
+
+  var statsData = useMemo(function() {
+    var now = new Date();
+    var today = getToday();
+    var weekAgo = new Date(now.getTime() - 7 * 24 * 3600000);
+    var weekKey = weekAgo.getFullYear() + "-" + String(weekAgo.getMonth() + 1).padStart(2, "0") + "-" + String(weekAgo.getDate()).padStart(2, "0");
+    var monthKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    var filtered = invLog.filter(function(l) {
+      if (!l.date) return false;
+      if (statsPeriod === "day") return l.date === today;
+      if (statsPeriod === "week") return l.date >= weekKey;
+      return l.date.substring(0, 7) === monthKey;
+    });
+    var inQty = 0, inAmt = 0, outQty = 0, outAmt = 0;
+    var byItem = {};
+    filtered.forEach(function(l) {
+      if (l.type === "in") { inQty += l.qty; inAmt += l.totalCost; }
+      else { outQty += l.qty; outAmt += l.totalCost; }
+      if (!byItem[l.itemId]) byItem[l.itemId] = { name: l.itemName, inQty: 0, inAmt: 0, outQty: 0, outAmt: 0 };
+      if (l.type === "in") { byItem[l.itemId].inQty += l.qty; byItem[l.itemId].inAmt += l.totalCost; }
+      else { byItem[l.itemId].outQty += l.qty; byItem[l.itemId].outAmt += l.totalCost; }
+    });
+    return { inQty: inQty, inAmt: inAmt, outQty: outQty, outAmt: outAmt, byItem: byItem };
+  }, [invLog, statsPeriod]);
 
   return (
     <div style={PAGE}>
       <div style={Object.assign({}, CS, { marginBottom: 14 })}>
         <p style={{ fontSize: 12, fontWeight: 700, margin: "0 0 10px" }}>📦 품목 관리</p>
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <input value={newName} onChange={function(e) { setNewName(e.target.value); }} placeholder="품목명 입력" style={Object.assign({}, IS, { flex: 1 })} />
+          <input value={newName} onChange={function(e) { setNewName(e.target.value); }} placeholder="품목명" style={Object.assign({}, IS, { flex: 1 })} />
+          <input type="number" value={newPrice || ""} onChange={function(e) { setNewPrice(e.target.value); }} placeholder="단가" style={Object.assign({}, IS, { width: 80 })} inputMode="numeric" />
           <button onClick={addItem} style={Object.assign({}, BP, { width: "auto", padding: "8px 16px" })}>추가</button>
         </div>
         {items.map(function(item, idx) {
+          var isEditing = editPriceId === item.id;
           return (
             <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f4f4f5" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1669,22 +1820,69 @@ function AdminInventory(p) {
                     style={{ border: "none", background: "none", fontSize: 10, cursor: idx === items.length - 1 ? "default" : "pointer", color: idx === items.length - 1 ? "#d4d4d8" : "#71717a", padding: 0, lineHeight: 1 }}>▼</button>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{item.name}</span>
+                {isEditing ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input type="number" value={editPriceVal} onChange={function(e) { setEditPriceVal(e.target.value); }} style={Object.assign({}, IS, { width: 70, padding: "2px 6px", fontSize: 11 })} inputMode="numeric" />
+                    <button onClick={function() { saveUnitPrice(item.id); }} style={{ border: "none", background: "none", color: "#16a34a", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>✓</button>
+                    <button onClick={function() { setEditPriceId(null); }} style={{ border: "none", background: "none", color: "#a1a1aa", fontSize: 11, cursor: "pointer" }}>✕</button>
+                  </div>
+                ) : (
+                  <span onClick={function() { setEditPriceId(item.id); setEditPriceVal(String(item.unitPrice || 0)); }} style={{ fontSize: 11, color: "#71717a", cursor: "pointer", textDecoration: "underline dotted" }}>@{formatCurrency(item.unitPrice || 0)}</span>
+                )}
               </div>
               <button onClick={function() { delItem(item.id); }} style={Object.assign({}, BO, { padding: "2px 8px", fontSize: 10, color: "#e1360a", borderColor: "#f5c6c0" })}>삭제</button>
             </div>
           );
         })}
       </div>
+
+      <div style={Object.assign({}, CS, { marginBottom: 14 })}>
+        <p style={{ fontSize: 12, fontWeight: 700, margin: "0 0 10px" }}>🏢 사무실 재고</p>
+        {items.length === 0 ? <p style={{ color: "#a1a1aa", fontSize: 12, textAlign: "center", padding: 16 }}>품목을 먼저 추가하세요</p> : (
+          <div>
+            {items.map(function(item) {
+              var qty = oStock[item.id] || 0;
+              var isRecv = recvItemId === item.id;
+              return (
+                <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f4f4f5" }}>
+                  <div>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{item.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, marginLeft: 8 }}>{qty}개</span>
+                    {item.unitPrice > 0 && <span style={{ fontSize: 10, color: "#a1a1aa", marginLeft: 4 }}>({formatCurrency(qty * item.unitPrice)})</span>}
+                  </div>
+                  {isRecv ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <input type="number" value={recvQty} onChange={function(e) { setRecvQty(e.target.value); }} placeholder="수량" style={Object.assign({}, IS, { width: 60, padding: "2px 6px", fontSize: 11 })} inputMode="numeric" />
+                      <button onClick={function() { receiveStock(item.id); }} style={Object.assign({}, BO, { padding: "2px 8px", fontSize: 10, color: "#16a34a", borderColor: "#bbf7d0" })}>확인</button>
+                      <button onClick={function() { setRecvItemId(null); setRecvQty(""); }} style={{ border: "none", background: "none", color: "#a1a1aa", fontSize: 11, cursor: "pointer" }}>✕</button>
+                    </div>
+                  ) : (
+                    <button onClick={function() { setRecvItemId(item.id); setRecvQty(""); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 11, color: "#2563eb", borderColor: "#bfdbfe" })}>입고</button>
+                  )}
+                </div>
+              );
+            })}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, padding: "8px 10px", background: "#f0f9ff", borderRadius: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#2563eb" }}>사무실 재고 총 가치</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: "#2563eb" }}>{formatCurrency(totalOfficeValue)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {pending.length > 0 && (
         <div style={Object.assign({}, CS, { marginBottom: 14 })}>
           <p style={{ fontSize: 12, fontWeight: 700, margin: "0 0 10px" }}>🔔 보충 요청 ({pending.length})</p>
           {pending.map(function(req) {
+            var offQty = oStock[req.itemId] || 0;
+            var insufficient = offQty < req.qty;
             return (
               <div key={req.id} style={{ padding: "10px 0", borderBottom: "1px solid #f4f4f5" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>{req.employeeName} — {req.itemName}</p>
                     <p style={{ fontSize: 11, color: "#71717a", margin: "2px 0 0" }}>{req.qty}개 요청</p>
+                    {insufficient && <p style={{ fontSize: 10, color: "#e1360a", fontWeight: 600, margin: "2px 0 0" }}>⚠ 사무실 재고 부족 (현재 {offQty}개)</p>}
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <button onClick={function() { handleReq(req, "approved"); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 11, color: "#16a34a", borderColor: "#bbf7d0" })}>승인</button>
@@ -1696,7 +1894,7 @@ function AdminInventory(p) {
           })}
         </div>
       )}
-      <div style={Object.assign({}, CS, { padding: 14 })}>
+      <div style={Object.assign({}, CS, { padding: 14, marginBottom: 14 })}>
         <p style={{ fontSize: 12, fontWeight: 700, margin: "0 0 10px" }}>👥 직원별 재고 현황</p>
         <div style={{ overflowX: "auto", paddingBottom: 4 }}>
           {items.length === 0 ? <p style={{ color: "#a1a1aa", fontSize: 12, textAlign: "center", padding: 16 }}>품목을 먼저 추가하세요</p> :
@@ -1723,6 +1921,52 @@ function AdminInventory(p) {
             })
           }
         </div>
+      </div>
+
+      <div style={Object.assign({}, CS, { padding: 14 })}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>📊 재고 사용 통계</p>
+          <div style={{ display: "flex", gap: 4 }}>
+            {["day", "week", "month"].map(function(pd) {
+              var labels = { day: "일", week: "주", month: "월" };
+              return <button key={pd} onClick={function() { setStatsPeriod(pd); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 10 }, statsPeriod === pd ? { background: "#2563eb", color: "#fff", borderColor: "#2563eb" } : {})}>{labels[pd]}</button>;
+            })}
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "10px 12px", background: "#f0fdf4", borderRadius: 8, textAlign: "center" }}>
+            <p style={{ fontSize: 10, color: "#16a34a", fontWeight: 600, margin: "0 0 2px" }}>입고</p>
+            <p style={{ fontSize: 16, fontWeight: 800, color: "#16a34a", margin: "0 0 2px" }}>{statsData.inQty}개</p>
+            <p style={{ fontSize: 11, color: "#16a34a", margin: 0 }}>{formatCurrency(statsData.inAmt)}</p>
+          </div>
+          <div style={{ padding: "10px 12px", background: "#fef2f2", borderRadius: 8, textAlign: "center" }}>
+            <p style={{ fontSize: 10, color: "#e1360a", fontWeight: 600, margin: "0 0 2px" }}>출고</p>
+            <p style={{ fontSize: 16, fontWeight: 800, color: "#e1360a", margin: "0 0 2px" }}>{statsData.outQty}개</p>
+            <p style={{ fontSize: 11, color: "#e1360a", margin: 0 }}>{formatCurrency(statsData.outAmt)}</p>
+          </div>
+        </div>
+        {Object.keys(statsData.byItem).length > 0 && (
+          <div>
+            <div style={{ display: "flex", padding: "6px 0", borderBottom: "2px solid #e4e4e7", fontSize: 10, fontWeight: 700, color: "#71717a" }}>
+              <span style={{ flex: 1 }}>품목</span>
+              <span style={{ width: 60, textAlign: "right" }}>입고</span>
+              <span style={{ width: 60, textAlign: "right" }}>출고</span>
+              <span style={{ width: 80, textAlign: "right" }}>입고 금액</span>
+            </div>
+            {Object.keys(statsData.byItem).map(function(id) {
+              var d = statsData.byItem[id];
+              return (
+                <div key={id} style={{ display: "flex", padding: "6px 0", borderBottom: "1px solid #f4f4f5", fontSize: 12 }}>
+                  <span style={{ flex: 1, fontWeight: 600 }}>{d.name}</span>
+                  <span style={{ width: 60, textAlign: "right", color: "#16a34a" }}>{d.inQty}개</span>
+                  <span style={{ width: 60, textAlign: "right", color: "#e1360a" }}>{d.outQty}개</span>
+                  <span style={{ width: 80, textAlign: "right", color: "#71717a" }}>{formatCurrency(d.inAmt)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {Object.keys(statsData.byItem).length === 0 && <p style={{ textAlign: "center", padding: 16, color: "#a1a1aa", fontSize: 12 }}>해당 기간 기록 없음</p>}
       </div>
       <Toast msg={toast} />
     </div>
@@ -2375,6 +2619,8 @@ function App() {
   var r21 = useState([]), varCosts = r21[0], setVarCosts = r21[1];
   var r22 = useState([]), production = r22[0], setProduction = r22[1];
   var r23 = useState({}), prodSettings = r23[0], setProdSettings = r23[1];
+  var r24 = useState({}), officeStock = r24[0], setOfficeStock = r24[1];
+  var r25 = useState([]), invLog = r25[0], setInvLog = r25[1];
 
   useEffect(function() {
     Promise.all([
@@ -2383,7 +2629,8 @@ function App() {
       store.get("ft-inv-items", []), store.get("ft-inv-stock", {}), store.get("ft-inv-requests", []),
       store.get("ft-gas", {}), store.get("ft-schedules", {}),
       store.get("ft-fixed-costs", []), store.get("ft-variable-costs", []),
-      store.get("ft-production", []), store.get("ft-prod-settings", {})
+      store.get("ft-production", []), store.get("ft-prod-settings", {}),
+      store.get("ft-inv-office", {}), store.get("ft-inv-log", [])
     ]).then(function(res) {
       if (res[0] && Array.isArray(res[0]) && res[0].length > 0) {
         var needsMigration = false;
@@ -2399,6 +2646,7 @@ function App() {
       setGasData(res[7]); setSchedules(res[8]);
       setFixedCosts(res[9]); setVarCosts(res[10]);
       setProduction(res[11]); setProdSettings(res[12]);
+      setOfficeStock(res[13]); setInvLog(res[14]);
 
       // 세션 복원
       try {
@@ -2425,13 +2673,15 @@ function App() {
         store.get("ft-inv-items", []), store.get("ft-inv-stock", {}), store.get("ft-inv-requests", []),
         store.get("ft-gas", {}), store.get("ft-schedules", {}),
         store.get("ft-fixed-costs", []), store.get("ft-variable-costs", []),
-        store.get("ft-production", []), store.get("ft-prod-settings", {})
+        store.get("ft-production", []), store.get("ft-prod-settings", {}),
+        store.get("ft-inv-office", {}), store.get("ft-inv-log", [])
       ]).then(function(res) {
         setSettings(res[0]); setReports(res[1]);
         setInventoryItems(res[2]); setInventoryStock(res[3]); setRequests(res[4]);
         setGasData(res[5]); setSchedules(res[6]);
         setFixedCosts(res[7]); setVarCosts(res[8]);
         setProduction(res[9]); setProdSettings(res[10]);
+        setOfficeStock(res[11]); setInvLog(res[12]);
       });
     }
     document.addEventListener("visibilitychange", reload);
@@ -2471,11 +2721,11 @@ function App() {
       {!isAdmin && tab === "salary" && <EmpSalary user={user} reports={reports} settings={settings} />}
       {!isAdmin && tab === "inventory" && <EmpInventory user={user} inventoryItems={inventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} />}
       {!isAdmin && tab === "revenue" && <EmpRevenue user={user} reports={reports} settings={settings} />}
-      {isAdmin && tab === "admin-home" && <AdminHome reports={reports} users={users} settings={settings} production={production} />}
+      {isAdmin && tab === "admin-home" && <AdminHome reports={reports} users={users} settings={settings} production={production} gasData={gasData} schedules={schedules} fixedCosts={fixedCosts} varCosts={varCosts} prodSettings={prodSettings} inventoryItems={inventoryItems} inventoryStock={inventoryStock} requests={requests} />}
       {isAdmin && tab === "admin-report" && <AdminReport reports={reports} setReports={setReports} users={users} settings={settings} />}
-      {isAdmin && tab === "admin-finance" && <AdminFinance reports={reports} settings={settings} production={production} fixedCosts={fixedCosts} setFixedCosts={setFixedCosts} varCosts={varCosts} setVarCosts={setVarCosts} prodSettings={prodSettings} users={users} />}
+      {isAdmin && tab === "admin-finance" && <AdminFinance reports={reports} settings={settings} production={production} fixedCosts={fixedCosts} setFixedCosts={setFixedCosts} varCosts={varCosts} setVarCosts={setVarCosts} prodSettings={prodSettings} users={users} invLog={invLog} />}
       {isAdmin && tab === "admin-chicken" && <AdminChicken production={production} setProduction={setProduction} prodSettings={prodSettings} setProdSettings={setProdSettings} reports={reports} />}
-      {isAdmin && tab === "admin-inv" && <AdminInventory inventoryItems={inventoryItems} setInventoryItems={setInventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} users={users} />}
+      {isAdmin && tab === "admin-inv" && <AdminInventory inventoryItems={inventoryItems} setInventoryItems={setInventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} users={users} officeStock={officeStock} setOfficeStock={setOfficeStock} invLog={invLog} setInvLog={setInvLog} varCosts={varCosts} setVarCosts={setVarCosts} />}
       {isAdmin && tab === "admin-emp" && <AdminEmployee users={users} setUsers={setUsers} settings={settings} setSettings={setSettings} schedules={schedules} setSchedules={setSchedules} reports={reports} setReports={setReports} />}
       <BottomNav tabs={isAdmin ? aTabs : eTabs} active={tab} onSelect={setTab} />
     </div>
