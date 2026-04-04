@@ -1882,23 +1882,25 @@ function AdminInventory(p) {
               var qty = oStock[item.id] || 0;
               var isRecv = recvItemId === item.id;
               return (
-                <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f4f4f5" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>{item.name}</span>
-                    <button onClick={function() { adjOffice(item.id, -1); }} style={{ border: "none", background: "none", color: "#e1360a", fontSize: 15, cursor: "pointer", padding: "0 2px", fontWeight: 700 }}>−</button>
-                    <span style={{ fontSize: 14, fontWeight: 800, minWidth: 18, textAlign: "center" }}>{qty}</span>
-                    <button onClick={function() { adjOffice(item.id, 1); }} style={{ border: "none", background: "none", color: "#16a34a", fontSize: 15, cursor: "pointer", padding: "0 2px", fontWeight: 700 }}>+</button>
-                    {item.unitPrice > 0 && <span style={{ fontSize: 11, color: "#a1a1aa" }}>({formatCurrency(qty * item.unitPrice)})</span>}
+                <div key={item.id} style={{ display: "flex", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #f4f4f5" }}>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600, minWidth: 0 }}>{item.name}</span>
+                  <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                    <button onClick={function() { adjOffice(item.id, -1); }} style={{ border: "none", background: "none", color: "#e1360a", fontSize: 16, cursor: "pointer", padding: "0 4px", fontWeight: 700, width: 28, textAlign: "center" }}>−</button>
+                    <span style={{ fontSize: 15, fontWeight: 800, minWidth: 30, textAlign: "center" }}>{qty}</span>
+                    <button onClick={function() { adjOffice(item.id, 1); }} style={{ border: "none", background: "none", color: "#16a34a", fontSize: 16, cursor: "pointer", padding: "0 4px", fontWeight: 700, width: 28, textAlign: "center" }}>+</button>
                   </div>
-                  {isRecv ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <input type="number" value={recvQty} onChange={function(e) { setRecvQty(e.target.value); }} placeholder="수량" style={Object.assign({}, IS, { width: 60, padding: "2px 6px", fontSize: 12 })} inputMode="numeric" />
-                      <button onClick={function() { receiveStock(item.id); }} style={Object.assign({}, BO, { padding: "2px 8px", fontSize: 11, color: "#16a34a", borderColor: "#bbf7d0" })}>확인</button>
-                      <button onClick={function() { setRecvItemId(null); setRecvQty(""); }} style={{ border: "none", background: "none", color: "#a1a1aa", fontSize: 12, cursor: "pointer" }}>✕</button>
-                    </div>
-                  ) : (
-                    <button onClick={function() { setRecvItemId(item.id); setRecvQty(""); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 12, color: "#2563eb", borderColor: "#bfdbfe" })}>입고</button>
-                  )}
+                  <span style={{ fontSize: 12, color: "#a1a1aa", minWidth: 76, textAlign: "right", flexShrink: 0, marginLeft: 2 }}>{item.unitPrice > 0 ? "(" + formatCurrency(qty * item.unitPrice) + ")" : ""}</span>
+                  <div style={{ marginLeft: 8, flexShrink: 0 }}>
+                    {isRecv ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <input type="number" value={recvQty} onChange={function(e) { setRecvQty(e.target.value); }} placeholder="수량" style={Object.assign({}, IS, { width: 60, padding: "2px 6px", fontSize: 12 })} inputMode="numeric" />
+                        <button onClick={function() { receiveStock(item.id); }} style={Object.assign({}, BO, { padding: "2px 8px", fontSize: 11, color: "#16a34a", borderColor: "#bbf7d0" })}>확인</button>
+                        <button onClick={function() { setRecvItemId(null); setRecvQty(""); }} style={{ border: "none", background: "none", color: "#a1a1aa", fontSize: 12, cursor: "pointer" }}>✕</button>
+                      </div>
+                    ) : (
+                      <button onClick={function() { setRecvItemId(item.id); setRecvQty(""); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 12, color: "#2563eb", borderColor: "#bfdbfe" })}>입고</button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -1943,15 +1945,17 @@ function AdminInventory(p) {
               return (
                 <div key={emp.id} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #f4f4f5" }}>
                   <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 8px" }}>{emp.name}</p>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <div>
                     {items.map(function(item) {
                       var qty = empStock[item.id] || 0;
                       return (
-                        <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", background: "#fafafa", borderRadius: 6, border: "1px solid #f0f0f3" }}>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: "#71717a" }}>{item.name}</span>
-                          <button onClick={function() { adjStock(emp.id, item.id, -1); }} style={{ border: "none", background: "none", color: "#e1360a", fontSize: 15, cursor: "pointer", padding: "0 2px", fontWeight: 700 }}>−</button>
-                          <span style={{ fontSize: 14, fontWeight: 800, minWidth: 18, textAlign: "center" }}>{qty}</span>
-                          <button onClick={function() { adjStock(emp.id, item.id, 1); }} style={{ border: "none", background: "none", color: "#16a34a", fontSize: 15, cursor: "pointer", padding: "0 2px", fontWeight: 700 }}>+</button>
+                        <div key={item.id} style={{ display: "flex", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f4f4f5" }}>
+                          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#71717a", minWidth: 0 }}>{item.name}</span>
+                          <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                            <button onClick={function() { adjStock(emp.id, item.id, -1); }} style={{ border: "none", background: "none", color: "#e1360a", fontSize: 16, cursor: "pointer", padding: "0 4px", fontWeight: 700, width: 28, textAlign: "center" }}>−</button>
+                            <span style={{ fontSize: 14, fontWeight: 800, minWidth: 28, textAlign: "center" }}>{qty}</span>
+                            <button onClick={function() { adjStock(emp.id, item.id, 1); }} style={{ border: "none", background: "none", color: "#16a34a", fontSize: 16, cursor: "pointer", padding: "0 4px", fontWeight: 700, width: 28, textAlign: "center" }}>+</button>
+                          </div>
                         </div>
                       );
                     })}
