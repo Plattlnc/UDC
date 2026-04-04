@@ -964,6 +964,8 @@ function AdminHome(p) {
       "ft-inv-items": p.inventoryItems,
       "ft-inv-stock": p.inventoryStock,
       "ft-inv-requests": p.requests,
+      "ft-inv-office": p.officeStock,
+      "ft-inv-log": p.invLog,
       "ft-gas": p.gasData,
       "ft-schedules": p.schedules,
       "ft-fixed-costs": p.fixedCosts,
@@ -2782,7 +2784,7 @@ function App() {
       {!isAdmin && tab === "salary" && <EmpSalary user={user} reports={reports} settings={settings} />}
       {!isAdmin && tab === "inventory" && <EmpInventory user={user} inventoryItems={inventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} />}
       {!isAdmin && tab === "revenue" && <EmpRevenue user={user} reports={reports} settings={settings} />}
-      {isAdmin && tab === "admin-home" && <AdminHome reports={reports} users={users} settings={settings} production={production} gasData={gasData} schedules={schedules} fixedCosts={fixedCosts} varCosts={varCosts} prodSettings={prodSettings} inventoryItems={inventoryItems} inventoryStock={inventoryStock} requests={requests} />}
+      {isAdmin && tab === "admin-home" && <AdminHome reports={reports} users={users} settings={settings} production={production} gasData={gasData} schedules={schedules} fixedCosts={fixedCosts} varCosts={varCosts} prodSettings={prodSettings} inventoryItems={inventoryItems} inventoryStock={inventoryStock} requests={requests} officeStock={officeStock} invLog={invLog} />}
       {isAdmin && tab === "admin-report" && <AdminReport reports={reports} setReports={setReports} users={users} settings={settings} />}
       {isAdmin && tab === "admin-finance" && <AdminFinance reports={reports} settings={settings} production={production} fixedCosts={fixedCosts} setFixedCosts={setFixedCosts} varCosts={varCosts} setVarCosts={setVarCosts} prodSettings={prodSettings} users={users} invLog={invLog} />}
       {isAdmin && tab === "admin-chicken" && <AdminChicken production={production} setProduction={setProduction} prodSettings={prodSettings} setProdSettings={setProdSettings} reports={reports} />}
