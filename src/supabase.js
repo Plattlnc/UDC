@@ -40,3 +40,22 @@ export const store = {
       .catch(function(e) { console.error('[store.set] 네트워크 오류:', key, e); return false; });
   }
 };
+
+// Google Sheets 동기화
+export function getSheetsUrl() {
+  return localStorage.getItem("ft-sheets-url") || "";
+}
+
+export function setSheetsUrl(url) {
+  localStorage.setItem("ft-sheets-url", url);
+}
+
+export function syncToSheets(payload) {
+  var url = getSheetsUrl();
+  if (!url) return Promise.reject(new Error("Sheets URL 미설정"));
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "sync_all", payload: payload })
+  }).then(function(res) { return res.json(); });
+}
