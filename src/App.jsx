@@ -1729,6 +1729,9 @@ function AdminInventory(p) {
   }
 
   function handleReq(req, action) {
+    if (action === "approved" && (oStock[req.itemId] || 0) < req.qty) {
+      showToast("재고가 부족합니다"); return;
+    }
     var u = requests.map(function(r) {
       if (r.id === req.id) return Object.assign({}, r, { status: action });
       return r;
@@ -1739,7 +1742,7 @@ function AdminInventory(p) {
       s[req.employeeId][req.itemId] = (s[req.employeeId][req.itemId] || 0) + req.qty;
       setStock(s); store.set("ft-inv-stock", s);
       var os = Object.assign({}, oStock);
-      os[req.itemId] = Math.max(0, (os[req.itemId] || 0) - req.qty);
+      os[req.itemId] = (os[req.itemId] || 0) - req.qty;
       setOStock(os); store.set("ft-inv-office", os);
       var item = items.find(function(i) { return i.id === req.itemId; });
       addInvLogEntry(req.itemId, req.itemName, "out", req.qty, item ? (item.unitPrice || 0) : 0, req.employeeId, req.employeeName);
@@ -1749,10 +1752,12 @@ function AdminInventory(p) {
   }
 
   function adjStock(empId, itemId, delta) {
+    var curEmp = (stock[empId] && stock[empId][itemId]) || 0;
+    if (delta > 0 && (oStock[itemId] || 0) < delta) { showToast("재고가 부족합니다"); return; }
+    if (delta < 0 && curEmp <= 0) return;
     var s = JSON.parse(JSON.stringify(stock));
     if (!s[empId]) s[empId] = {};
-    var newVal = Math.max(0, (s[empId][itemId] || 0) + delta);
-    s[empId][itemId] = newVal;
+    s[empId][itemId] = curEmp + delta;
     setStock(s); store.set("ft-inv-stock", s);
     var item = items.find(function(i) { return i.id === itemId; });
     var emp = users.find(function(u) { return u.id === empId; });
@@ -1761,7 +1766,7 @@ function AdminInventory(p) {
     var iPrice = item ? (item.unitPrice || 0) : 0;
     if (delta > 0) {
       var os = Object.assign({}, oStock);
-      os[itemId] = Math.max(0, (os[itemId] || 0) - delta);
+      os[itemId] = (os[itemId] || 0) - delta;
       setOStock(os); store.set("ft-inv-office", os);
       addInvLogEntry(itemId, iName, "out", delta, iPrice, empId, eName);
     } else if (delta < 0) {
@@ -1769,6 +1774,14 @@ function AdminInventory(p) {
       os2[itemId] = (os2[itemId] || 0) + Math.abs(delta);
       setOStock(os2); store.set("ft-inv-office", os2);
     }
+  }
+
+  function adjOffice(itemId, delta) {
+    var cur = oStock[itemId] || 0;
+    if (delta < 0 && cur <= 0) return;
+    var os = Object.assign({}, oStock);
+    os[itemId] = Math.max(0, cur + delta);
+    setOStock(os); store.set("ft-inv-office", os);
   }
 
   var totalOfficeValue = items.reduce(function(a, item) {
@@ -1845,10 +1858,12 @@ function AdminInventory(p) {
               var isRecv = recvItemId === item.id;
               return (
                 <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f4f4f5" }}>
-                  <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{item.name}</span>
-                    <span style={{ fontSize: 13, fontWeight: 800, marginLeft: 8 }}>{qty}개</span>
-                    {item.unitPrice > 0 && <span style={{ fontSize: 10, color: "#a1a1aa", marginLeft: 4 }}>({formatCurrency(qty * item.unitPrice)})</span>}
+                    <button onClick={function() { adjOffice(item.id, -1); }} style={{ border: "none", background: "none", color: "#e1360a", fontSize: 14, cursor: "pointer", padding: "0 2px", fontWeight: 700 }}>−</button>
+                    <span style={{ fontSize: 13, fontWeight: 800, minWidth: 18, textAlign: "center" }}>{qty}</span>
+                    <button onClick={function() { adjOffice(item.id, 1); }} style={{ border: "none", background: "none", color: "#16a34a", fontSize: 14, cursor: "pointer", padding: "0 2px", fontWeight: 700 }}>+</button>
+                    {item.unitPrice > 0 && <span style={{ fontSize: 10, color: "#a1a1aa" }}>({formatCurrency(qty * item.unitPrice)})</span>}
                   </div>
                   {isRecv ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
