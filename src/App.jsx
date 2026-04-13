@@ -1166,7 +1166,7 @@ function AdminFinance(p) {
   var now = new Date();
   var thisMonthKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
   var price = settings.pricePerUnit || 5000;
-  var unitCost = (Number(prodSettings.kgPrice) || 0) * 12;
+  var unitProdCost = (Number(prodSettings.prodCost) || 0) + (Number(prodSettings.skewCost) || 0);
 
   var monthRev = useMemo(function() {
     var sold = 0;
@@ -1182,10 +1182,12 @@ function AdminFinance(p) {
 
   var monthProdCost = useMemo(function() {
     var total = 0;
+    var pCost = Number(prodSettings.prodCost) || 0;
+    var sCost = Number(prodSettings.skewCost) || 0;
     production.forEach(function(pr) {
       if (pr.date && pr.date.substring(0, 7) === thisMonthKey) {
-        var matCost = (Number(prodSettings.kgPrice) || 0) * 12 * (Number(pr.boxes) || 0);
-        var labCost = (Number(prodSettings.prodCost) || 0) * (Number(pr.qty) || 0);
+        var matCost = (Number(pr.kgPrice) || 0) * (Number(pr.usedKg) || 0) + (Number(pr.paPrice) || 0);
+        var labCost = (pCost + sCost) * (Number(pr.qty) || 0);
         total += matCost + labCost;
       }
     });
@@ -1376,7 +1378,7 @@ function AdminFinance(p) {
           <span style={{ fontSize: 13, color: "#71717a" }}>{thisMonthKey} 생산비</span>
           <span style={{ fontSize: 18, fontWeight: 800, color: "#e1360a" }}>{formatCurrency(monthProdCost)}</span>
         </div>
-        <p style={{ fontSize: 11, color: "#a1a1aa", margin: "4px 0 0" }}>박스당 {formatCurrency(unitCost)} + 제작비 {formatCurrency(Number(prodSettings.prodCost) || 0)}/개 기준</p>
+        <p style={{ fontSize: 11, color: "#a1a1aa", margin: "4px 0 0" }}>생산비 {formatCurrency(Number(prodSettings.prodCost) || 0)} + 꽂이값 {formatCurrency(Number(prodSettings.skewCost) || 0)}/개 기준</p>
       </div>
       <div style={Object.assign({}, CS, { padding: 14 })}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -1425,10 +1427,9 @@ function AdminChicken(p) {
   var r2 = useState(""), toast = r2[0], setToast = r2[1];
   var r3 = useState(false), adding = r3[0], setAdding = r3[1];
   var r4 = useState(null), editId = r4[0], setEditId = r4[1];
-  var r5 = useState({ date: getToday(), type: "sunsal", qty: "", boxes: "" }), form = r5[0], setForm = r5[1];
-  var kgPrice = Number(prodSettings.kgPrice) || 0;
+  var r5 = useState({ date: getToday(), type: "sunsal", qty: "", usedKg: "", kgPrice: "", paPrice: "" }), form = r5[0], setForm = r5[1];
   var prodCost = Number(prodSettings.prodCost) || 0;
-  var boxPrice = kgPrice * 12;
+  var skewCost = Number(prodSettings.skewCost) || 0;
 
   var now = new Date();
   var thisMonthKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
@@ -1440,15 +1441,17 @@ function AdminChicken(p) {
     var today = getToday();
     production.forEach(function(pr) {
       var q = Number(pr.qty) || 0;
-      var b = Number(pr.boxes) || 0;
-      var mat = kgPrice * 12 * b;
-      var lab = prodCost * q;
+      var prKg = Number(pr.usedKg) || 0;
+      var prKgPrice = Number(pr.kgPrice) || 0;
+      var prPa = Number(pr.paPrice) || 0;
+      var mat = prKgPrice * prKg + prPa;
+      var lab = (prodCost + skewCost) * q;
       if (pr.date && pr.date.substring(0, 7) === thisMonthKey) { m += q; mMat += mat; mLab += lab; }
       if (pr.date >= weekKey) { w += q; wMat += mat; wLab += lab; }
       if (pr.date === today) { d += q; dMat += mat; dLab += lab; }
     });
     return { m: m, mMat: mMat, mLab: mLab, w: w, wMat: wMat, wLab: wLab, d: d, dMat: dMat, dLab: dLab };
-  }, [production, thisMonthKey, weekKey, kgPrice, prodCost]);
+  }, [production, thisMonthKey, weekKey, prodCost, skewCost]);
 
   var avgCost = useMemo(function() {
     var sorted = production.slice().sort(function(a, b) { return (b.savedAt || "").localeCompare(a.savedAt || ""); });
@@ -1458,13 +1461,15 @@ function AdminChicken(p) {
     var latestDate = "";
     recent.forEach(function(pr) {
       var q = Number(pr.qty) || 1;
-      var b = Number(pr.boxes) || 0;
-      var perPiece = (kgPrice * 12 * b / q) + prodCost;
+      var prKg = Number(pr.usedKg) || 0;
+      var prKgPrice = Number(pr.kgPrice) || 0;
+      var prPa = Number(pr.paPrice) || 0;
+      var perPiece = (prKgPrice * prKg + prPa) / q + prodCost + skewCost;
       sum += perPiece;
       if (!latestDate || pr.date > latestDate) latestDate = pr.date;
     });
     return { avg: Math.round(sum / recent.length), date: latestDate };
-  }, [production, kgPrice, prodCost]);
+  }, [production, prodCost, skewCost]);
 
   var officeStock = useMemo(function() {
     var produced = { sunsal: 0, padak: 0 };
@@ -1492,8 +1497,8 @@ function AdminChicken(p) {
   }
 
   function saveEntry() {
-    if (!form.qty || !form.boxes) return;
-    var entry = { date: form.date, type: form.type, qty: Number(form.qty), boxes: Number(form.boxes), savedAt: new Date().toISOString() };
+    if (!form.qty || !form.usedKg || !form.kgPrice) return;
+    var entry = { date: form.date, type: form.type, qty: Number(form.qty), usedKg: Number(form.usedKg), kgPrice: Number(form.kgPrice), paPrice: form.type === "padak" ? (Number(form.paPrice) || 0) : 0, savedAt: new Date().toISOString() };
     var u;
     if (editId) {
       u = production.map(function(pr) { return pr.id === editId ? Object.assign({}, pr, entry) : pr; });
@@ -1502,7 +1507,7 @@ function AdminChicken(p) {
       u = production.concat([entry]);
     }
     setProduction(u); store.set("ft-production", u);
-    setForm({ date: getToday(), type: "sunsal", qty: "", boxes: "" });
+    setForm({ date: getToday(), type: "sunsal", qty: "", usedKg: "", kgPrice: "", paPrice: "" });
     setAdding(false); setEditId(null);
     setToast("저장 완료"); setTimeout(function() { setToast(""); }, 2000);
   }
@@ -1513,7 +1518,7 @@ function AdminChicken(p) {
   }
 
   function openEdit(pr) {
-    setForm({ date: pr.date, type: pr.type, qty: pr.qty, boxes: pr.boxes || "" });
+    setForm({ date: pr.date, type: pr.type, qty: pr.qty, usedKg: pr.usedKg || "", kgPrice: pr.kgPrice || "", paPrice: pr.paPrice || "" });
     setEditId(pr.id); setAdding(true);
   }
 
@@ -1523,10 +1528,12 @@ function AdminChicken(p) {
 
   var lastDate = prodSettings.lastUpdated || "";
 
-  var fBoxes = Number(form.boxes) || 0;
+  var fUsedKg = Number(form.usedKg) || 0;
+  var fKgPrice = Number(form.kgPrice) || 0;
   var fQty = Number(form.qty) || 0;
-  var fMatCost = kgPrice * 12 * fBoxes;
-  var fLabCost = prodCost * fQty;
+  var fPaPrice = form.type === "padak" ? (Number(form.paPrice) || 0) : 0;
+  var fMatCost = fKgPrice * fUsedKg + fPaPrice;
+  var fLabCost = (prodCost + skewCost) * fQty;
 
   return (
     <div style={PAGE}>
@@ -1536,8 +1543,8 @@ function AdminChicken(p) {
           {lastDate && <span style={{ fontSize: 11, color: "#18181b", opacity: 0.35 }}>({lastDate.replace(/-/g, ".").substring(2)} 기준)</span>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <NumInput label="KG당가격" value={prodSettings.kgPrice || ""} onChange={function(v) { saveProdSettings("kgPrice", v); }} suffix="원" />
-          <NumInput label="제작비용 (개당)" value={prodSettings.prodCost || ""} onChange={function(v) { saveProdSettings("prodCost", v); }} suffix="원" />
+          <NumInput label="생산비 (개당)" value={prodSettings.prodCost || ""} onChange={function(v) { saveProdSettings("prodCost", v); }} suffix="원" />
+          <NumInput label="꽂이값 (개당)" value={prodSettings.skewCost || ""} onChange={function(v) { saveProdSettings("skewCost", v); }} suffix="원" />
         </div>
         <div style={{ padding: "10px 12px", background: "#fff8f6", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: "#71717a" }}>평균 생산비</span>
@@ -1546,7 +1553,7 @@ function AdminChicken(p) {
             {avgCost.date && <span style={{ fontSize: 11, color: "#18181b", opacity: 0.35, marginLeft: 6 }}>({avgCost.date.replace(/-/g, ".").substring(2)} 기준)</span>}
           </div>
         </div>
-        <p style={{ fontSize: 11, color: "#a1a1aa", margin: "6px 0 0" }}>최근 7건 기준 · 1박스 = 12kg = {formatCurrency(boxPrice)}</p>
+        <p style={{ fontSize: 11, color: "#a1a1aa", margin: "6px 0 0" }}>최근 7건 기준 · 생산일지 기반 자동계산</p>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
         <div style={CS}>
@@ -1587,10 +1594,13 @@ function AdminChicken(p) {
           <span>일자</span><span>분류</span><span style={{ textAlign: "center" }}>개수</span><span style={{ textAlign: "right" }}>생산가</span><span style={{ textAlign: "right" }}>제작비</span><span style={{ textAlign: "right" }}>꼬치당</span><span />
         </div>
         {sorted.slice(0, show).map(function(pr) {
-          var matC = kgPrice * 12 * (Number(pr.boxes) || 0);
-          var labC = prodCost * (Number(pr.qty) || 0);
+          var prKg = Number(pr.usedKg) || 0;
+          var prKgPrice = Number(pr.kgPrice) || 0;
+          var prPa = Number(pr.paPrice) || 0;
+          var matC = prKgPrice * prKg + prPa;
+          var labC = (prodCost + skewCost) * (Number(pr.qty) || 0);
           var q = Number(pr.qty) || 1;
-          var perPiece = Math.round(matC / q) + prodCost;
+          var perPiece = Math.round(matC / q) + prodCost + skewCost;
           return (
             <div key={pr.id} style={{ display: "grid", gridTemplateColumns: "1fr 0.5fr 0.4fr 0.6fr 0.6fr 0.6fr 0.3fr", padding: "8px 6px", borderBottom: "1px solid #f4f4f5", fontSize: 12, alignItems: "center" }}>
               <span style={{ fontWeight: 600, fontSize: 11 }}>{formatDate(pr.date)}</span>
@@ -1623,10 +1633,14 @@ function AdminChicken(p) {
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-              <NumInput label="소모박스" value={form.boxes} onChange={function(v) { setForm(Object.assign({}, form, { boxes: v })); }} suffix="박스" />
+              <NumInput label="kg당 금액" value={form.kgPrice} onChange={function(v) { setForm(Object.assign({}, form, { kgPrice: v })); }} suffix="원" />
+              <NumInput label="소모 kg" value={form.usedKg} onChange={function(v) { setForm(Object.assign({}, form, { usedKg: v })); }} suffix="kg" />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: form.type === "padak" ? "1fr 1fr" : "1fr", gap: 10, marginBottom: 10 }}>
+              {form.type === "padak" && <NumInput label="파값" value={form.paPrice} onChange={function(v) { setForm(Object.assign({}, form, { paPrice: v })); }} suffix="원" />}
               <NumInput label="생산개수" value={form.qty} onChange={function(v) { setForm(Object.assign({}, form, { qty: v })); }} suffix="개" />
             </div>
-            {(fBoxes > 0 || fQty > 0) && (
+            {(fUsedKg > 0 || fQty > 0) && (
               <div style={{ padding: "8px 12px", background: "#f9fafb", borderRadius: 8, marginBottom: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
                   <span style={{ color: "#71717a" }}>생산가</span>
@@ -1640,7 +1654,7 @@ function AdminChicken(p) {
                   <span style={{ fontWeight: 700 }}>합계</span>
                   <span style={{ fontWeight: 800, color: "#e1360a" }}>{formatCurrency(fMatCost + fLabCost)}</span>
                 </div>
-                {fQty > 0 && <p style={{ fontSize: 11, color: "#a1a1aa", margin: "4px 0 0", textAlign: "right" }}>꼬치당 {formatCurrency(Math.round(fMatCost / fQty) + prodCost)}</p>}
+                {fQty > 0 && <p style={{ fontSize: 11, color: "#a1a1aa", margin: "4px 0 0", textAlign: "right" }}>꼬치당 {formatCurrency(Math.round(fMatCost / fQty) + prodCost + skewCost)}</p>}
               </div>
             )}
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
@@ -1650,7 +1664,7 @@ function AdminChicken(p) {
           </div>
         </div>
       )}
-      <button onClick={function() { setForm({ date: getToday(), type: "sunsal", qty: "", boxes: "" }); setEditId(null); setAdding(true); }}
+      <button onClick={function() { setForm({ date: getToday(), type: "sunsal", qty: "", usedKg: "", kgPrice: "", paPrice: "" }); setEditId(null); setAdding(true); }}
         style={{ position: "fixed", bottom: 88, right: 20, width: 56, height: 56, borderRadius: 28, background: "#e1360a", color: "#fff", border: "none", fontSize: 28, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(225,54,10,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 90 }}>+</button>
       <Toast msg={toast} />
     </div>

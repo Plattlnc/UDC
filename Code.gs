@@ -252,14 +252,14 @@ function writeVarCosts(sheet, arr) {
 }
 
 function writeProduction(sheet, arr) {
-  var headers = ["날짜", "종류", "수량(개)", "박스(수)"];
+  var headers = ["날짜", "종류", "수량(개)", "kg당금액", "소모kg", "파값"];
   var sorted = arr.slice().sort(function(a, b) {
     return ((b.date || "") > (a.date || "")) ? 1 : -1;
   });
   var rows = [];
   for (var i = 0; i < sorted.length; i++) {
     var pr = sorted[i];
-    rows.push([pr.date || "", typeKo(pr.type), money(pr.qty), money(pr.boxes)]);
+    rows.push([pr.date || "", typeKo(pr.type), money(pr.qty), money(pr.kgPrice), pr.usedKg || 0, money(pr.paPrice)]);
   }
   w(sheet, headers, rows);
 }
@@ -352,7 +352,7 @@ function writeVehicles(sheet, obj) {
 }
 
 function writeProdSettings(sheet, data) {
-  var labels = { kgPrice: "kg당 단가", prodCost: "제작비(개당)" };
+  var labels = { prodCost: "생산비(개당)", skewCost: "꽂이값(개당)" };
   var headers = ["설정항목", "값"];
   var rows = [];
   for (var k in data) {
