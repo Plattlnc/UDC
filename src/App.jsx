@@ -124,7 +124,7 @@ function NumInput(p) {
 function Toast(p) {
   if (!p.msg) return null;
   return (
-    <div style={{ position: "fixed", top: 80, left: "50%", transform: "translateX(-50%)", background: "#18181b", color: "#fff", padding: "13px 30px", borderRadius: 13, fontSize: 15, fontWeight: 700, zIndex: 200, boxShadow: "0 4px 16px rgba(0,0,0,0.15)" }}>
+    <div style={{ position: "fixed", top: 80, left: p.isUnfolded ? "calc(280px + 50%)" : "50%", transform: "translateX(-50%)", background: "#18181b", color: "#fff", padding: "13px 30px", borderRadius: 13, fontSize: 15, fontWeight: 700, zIndex: 200, boxShadow: "0 4px 16px rgba(0,0,0,0.15)" }}>
       {p.msg}
     </div>
   );
@@ -174,6 +174,43 @@ function LoginScreen(p) {
       }
     }
   }
+  var pinDots = (
+    <div style={{ display: "flex", gap: 14, marginBottom: 36 }}>
+      {[0, 1, 2, 3, 4, 5].map(function(i) {
+        return <div key={i} style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid " + (err ? "#e1360a" : pin.length > i ? "#e1360a" : "#d4d4d8"), background: pin.length > i ? "#e1360a" : "transparent", transition: "all 0.15s" }} />;
+      })}
+    </div>
+  );
+  var keypad = (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,84px)", gap: 14 }}>
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, "⌫"].map(function(n, i) {
+        return (
+          <button key={i} onClick={function() { if (n === "⌫") setPin(function(q) { return q.slice(0, -1); }); else if (n !== null) tap(String(n)); }}
+            style={{ width: 84, height: 84, borderRadius: 20, border: "1px solid #f0f0f3", background: n === null ? "transparent" : "#fafafa", color: "#18181b", fontSize: n === "⌫" ? 24 : 30, fontWeight: 600, cursor: n === null ? "default" : "pointer", visibility: n === null ? "hidden" : "visible", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {n}
+          </button>
+        );
+      })}
+    </div>
+  );
+  if (p.isUnfolded) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", background: "#fff" }}>
+        <div style={{ width: 280, background: "#e1360a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 96, height: 96, borderRadius: 24, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+            <span style={{ fontSize: 48, color: "#fff", fontWeight: 900 }}>U</span>
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: "#fff", margin: 0, textAlign: "center" }}>UDC 대시보드</h1>
+        </div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40 }}>
+          <p style={{ color: "#a1a1aa", fontSize: 15, margin: "0 0 32px" }}>PIN 6자리를 입력하세요</p>
+          {pinDots}
+          {keypad}
+          {err && <p style={{ color: "#e1360a", fontSize: 15, marginTop: 16, fontWeight: 600 }}>PIN이 올바르지 않습니다</p>}
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#fff", padding: 22 }}>
       <div style={{ width: 96, height: 96, borderRadius: 24, background: "#e1360a", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
@@ -181,21 +218,8 @@ function LoginScreen(p) {
       </div>
       <h1 style={{ fontSize: 28, fontWeight: 800, color: "#e1360a", margin: "13px 0 4px" }}>UDC 대시보드</h1>
       <p style={{ color: "#a1a1aa", fontSize: 15, margin: "0 0 32px" }}>PIN 6자리를 입력하세요</p>
-      <div style={{ display: "flex", gap: 14, marginBottom: 36 }}>
-        {[0, 1, 2, 3, 4, 5].map(function(i) {
-          return <div key={i} style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid " + (err ? "#e1360a" : pin.length > i ? "#e1360a" : "#d4d4d8"), background: pin.length > i ? "#e1360a" : "transparent", transition: "all 0.15s" }} />;
-        })}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,84px)", gap: 14 }}>
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, "⌫"].map(function(n, i) {
-          return (
-            <button key={i} onClick={function() { if (n === "⌫") setPin(function(q) { return q.slice(0, -1); }); else if (n !== null) tap(String(n)); }}
-              style={{ width: 84, height: 84, borderRadius: 20, border: "1px solid #f0f0f3", background: n === null ? "transparent" : "#fafafa", color: "#18181b", fontSize: n === "⌫" ? 24 : 30, fontWeight: 600, cursor: n === null ? "default" : "pointer", visibility: n === null ? "hidden" : "visible", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {n}
-            </button>
-          );
-        })}
-      </div>
+      {pinDots}
+      {keypad}
       {err && <p style={{ color: "#e1360a", fontSize: 15, marginTop: 16, fontWeight: 600 }}>PIN이 올바르지 않습니다</p>}
     </div>
   );
@@ -632,7 +656,7 @@ function EmpReport(p) {
           </div>
         </div>
         {editing && <button onClick={save} style={BP}>{isNew ? "기록 저장" : "수정 저장"}</button>}
-        <Toast msg={toast} />
+        <Toast msg={toast} isUnfolded={p.isUnfolded} />
       </div>
     );
   }
@@ -662,7 +686,7 @@ function EmpReport(p) {
         );
       })}
       {show < list.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 13, color: "#71717a" })}>더 보기</button>}
-      <button onClick={openNew} style={{ position: "fixed", bottom: 96, right: 20, width: 62, height: 62, borderRadius: 31, background: "#e1360a", color: "#fff", border: "none", fontSize: 30, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(225,54,10,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 90 }}>+</button>
+      <button onClick={openNew} style={{ position: "fixed", bottom: p.isUnfolded ? 28 : 96, right: p.isUnfolded ? 28 : 20, width: 62, height: 62, borderRadius: 31, background: "#e1360a", color: "#fff", border: "none", fontSize: 30, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(225,54,10,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 90 }}>+</button>
     </div>
   );
 }
@@ -741,7 +765,7 @@ function EmpInventory(p) {
           </div>
         </div>
       )}
-      <Toast msg={toast} />
+      <Toast msg={toast} isUnfolded={p.isUnfolded} />
     </div>
   );
 }
@@ -1665,8 +1689,8 @@ function AdminChicken(p) {
         </div>
       )}
       <button onClick={function() { setForm({ date: getToday(), type: "sunsal", qty: "", usedKg: "", kgPrice: "", paPrice: "" }); setEditId(null); setAdding(true); }}
-        style={{ position: "fixed", bottom: 96, right: 20, width: 62, height: 62, borderRadius: 31, background: "#e1360a", color: "#fff", border: "none", fontSize: 30, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(225,54,10,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 90 }}>+</button>
-      <Toast msg={toast} />
+        style={{ position: "fixed", bottom: p.isUnfolded ? 28 : 96, right: p.isUnfolded ? 28 : 20, width: 62, height: 62, borderRadius: 31, background: "#e1360a", color: "#fff", border: "none", fontSize: 30, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(225,54,10,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 90 }}>+</button>
+      <Toast msg={toast} isUnfolded={p.isUnfolded} />
     </div>
   );
 }
@@ -2049,7 +2073,7 @@ function AdminInventory(p) {
           </div>
         )}
       </div>
-      <Toast msg={toast} />
+      <Toast msg={toast} isUnfolded={p.isUnfolded} />
     </div>
   );
 }
@@ -2376,8 +2400,8 @@ function AdminEmployee(p) {
         </div>
       )}
       {/* FAB */}
-      <button onClick={function() { setAdding(true); }} style={{ position: "fixed", bottom: 96, right: 20, width: 62, height: 62, borderRadius: 31, background: "#e1360a", color: "#fff", border: "none", fontSize: 30, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(225,54,10,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 90 }}>+</button>
-      <Toast msg={toast} />
+      <button onClick={function() { setAdding(true); }} style={{ position: "fixed", bottom: p.isUnfolded ? 28 : 96, right: p.isUnfolded ? 28 : 20, width: 62, height: 62, borderRadius: 31, background: "#e1360a", color: "#fff", border: "none", fontSize: 30, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(225,54,10,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 90 }}>+</button>
+      <Toast msg={toast} isUnfolded={p.isUnfolded} />
     </div>
   );
 }
@@ -2581,7 +2605,7 @@ function AdminReport(p) {
         </div>
         {editing && <button onClick={save} style={Object.assign({}, BP, { marginBottom: 10 })}>수정 저장</button>}
         <button onClick={deleteReport} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 14, color: "#e1360a", borderColor: "#f5c6c0", marginTop: editing ? 0 : 8 })}>🗑 일보 삭제</button>
-        <Toast msg={toast} />
+        <Toast msg={toast} isUnfolded={p.isUnfolded} />
       </div>
     );
   }
@@ -2626,7 +2650,7 @@ function AdminReport(p) {
           );
         })}
         {show < list.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 14, color: "#71717a" })}>더 보기</button>}
-        <Toast msg={toast} />
+        <Toast msg={toast} isUnfolded={p.isUnfolded} />
       </div>
     );
   }
@@ -2677,11 +2701,65 @@ function AdminReport(p) {
           </div>
         </div>
       )}
-      <Toast msg={toast} />
+      <Toast msg={toast} isUnfolded={p.isUnfolded} />
     </div>
   );
 }
 
+
+// ── SideNav (UNFOLDED 전용) ──────────────────────────────────────────────────
+function SideNav(p) {
+  var headerHeight = 61;
+  return (
+    <nav style={{
+      position: "fixed", top: headerHeight, left: 0,
+      width: 280, height: "calc(100vh - " + headerHeight + "px)",
+      background: "#fff", borderRight: "1px solid #f0f0f3",
+      display: "flex", flexDirection: "column",
+      overflowY: "auto", zIndex: 50,
+      paddingTop: 8, paddingBottom: 24, boxSizing: "border-box"
+    }}>
+      {p.tabs.map(function(t) {
+        var isActive = p.active === t.id;
+        return (
+          <button key={t.id} onClick={function() { p.onSelect(t.id); }}
+            style={{
+              display: "flex", alignItems: "center", gap: 13,
+              padding: "14px 22px", width: "100%",
+              background: isActive ? "#fff8f6" : "none",
+              border: "none",
+              borderLeft: isActive ? "3px solid #e1360a" : "3px solid transparent",
+              cursor: "pointer", fontSize: 15,
+              fontWeight: isActive ? 700 : 500,
+              color: isActive ? "#e1360a" : "#18181b",
+              textAlign: "left", boxSizing: "border-box"
+            }}>
+            <span style={{ fontSize: 22, lineHeight: 1 }}>{t.icon}</span>
+            <span>{t.label}</span>
+            {t.badge > 0 && (
+              <span style={{ marginLeft: "auto", background: "#ffc40e", color: "#18181b",
+                fontSize: 11, fontWeight: 700, borderRadius: 99,
+                minWidth: 20, height: 20, display: "flex", alignItems: "center",
+                justifyContent: "center", padding: "0 5px" }}>{t.badge}</span>
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ── Viewport 감지 훅 (구버전 — 하위 호환) ──────────────────────────────────
+function useViewport() {
+  var init = typeof window !== "undefined" ? window.innerWidth : 540;
+  var rs = useState(init), vw = rs[0], setVw = rs[1];
+  useEffect(function() {
+    function onResize() { setVw(window.innerWidth); }
+    window.addEventListener("resize", onResize);
+    return function() { window.removeEventListener("resize", onResize); };
+  }, []);
+  return vw;
+}
 
 function App() {
   var r1 = useState(null), user = r1[0], setUser = r1[1];
@@ -2702,6 +2780,14 @@ function App() {
   var r23 = useState({}), prodSettings = r23[0], setProdSettings = r23[1];
   var r24 = useState({}), officeStock = r24[0], setOfficeStock = r24[1];
   var r25 = useState([]), invLog = r25[0], setInvLog = r25[1];
+  var r_bp = useState(window.innerWidth >= 600 ? "unfolded" : "folded");
+  var bp = r_bp[0], setBp = r_bp[1];
+
+  useEffect(function() {
+    function handleResize() { setBp(window.innerWidth >= 600 ? "unfolded" : "folded"); }
+    window.addEventListener("resize", handleResize);
+    return function() { window.removeEventListener("resize", handleResize); };
+  }, []);
 
   useEffect(function() {
     Promise.all([
@@ -2786,29 +2872,46 @@ function App() {
     try { localStorage.removeItem("ft-session"); } catch(e) {}
   }
 
+  var isUnfolded = bp === "unfolded";
+
   if (!loaded) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff" }}><p style={{ color: "#a1a1aa" }}>로딩 중...</p></div>;
-  if (!user) return <LoginScreen onLogin={login} />;
+  if (!user) return <LoginScreen onLogin={login} isUnfolded={isUnfolded} />;
 
   var isAdmin = user.role === "admin";
   var eTabs = [{ id: "vehicle", label: "내차량", icon: "🚛" }, { id: "inventory", label: "재고", icon: "📦" }, { id: "report", label: "일보", icon: "📋" }, { id: "salary", label: "급여", icon: "💵" }, { id: "revenue", label: "매출", icon: "💰" }];
   var aTabs = [{ id: "admin-home", label: "홈", icon: "🏠" }, { id: "admin-report", label: "일보", icon: "📋" }, { id: "admin-finance", label: "재무", icon: "💰" }, { id: "admin-chicken", label: "꼬치", icon: "🍗" }, { id: "admin-inv", label: "재고", icon: "📦" }, { id: "admin-emp", label: "직원", icon: "👥" }];
+  var tabs = isAdmin ? aTabs : eTabs;
   var titles = { vehicle: "내 차량", report: "판매일보", salary: "급여", inventory: "재고", revenue: "매출", "admin-home": "홈", "admin-report": "직원 일보", "admin-finance": "재무", "admin-chicken": "꼬치 관리", "admin-inv": "재고 관리", "admin-emp": "직원 관리" };
 
-  return (
-    <div style={{ minHeight: "100vh", background: "#fafafa", maxWidth: 540, margin: "0 auto" }}>
-      <Header title={titles[tab]} userName={user.name} onLogout={logout} />
+  // 공통 페이지 컨텐츠
+  var pageContent = (
+    <div>
       {!isAdmin && tab === "vehicle" && <EmpVehicle user={user} reports={reports} settings={settings} gasData={gasData} setGasData={setGasData} schedules={schedules} setSchedules={setSchedules} />}
-      {!isAdmin && tab === "report" && <EmpReport user={user} reports={reports} setReports={setReports} settings={settings} />}
+      {!isAdmin && tab === "report" && <EmpReport user={user} reports={reports} setReports={setReports} settings={settings} isUnfolded={isUnfolded} />}
       {!isAdmin && tab === "salary" && <EmpSalary user={user} reports={reports} settings={settings} />}
-      {!isAdmin && tab === "inventory" && <EmpInventory user={user} inventoryItems={inventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} />}
+      {!isAdmin && tab === "inventory" && <EmpInventory user={user} inventoryItems={inventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} isUnfolded={isUnfolded} />}
       {!isAdmin && tab === "revenue" && <EmpRevenue user={user} reports={reports} settings={settings} />}
       {isAdmin && tab === "admin-home" && <AdminHome reports={reports} users={users} settings={settings} production={production} gasData={gasData} schedules={schedules} fixedCosts={fixedCosts} varCosts={varCosts} prodSettings={prodSettings} inventoryItems={inventoryItems} inventoryStock={inventoryStock} requests={requests} officeStock={officeStock} invLog={invLog} />}
-      {isAdmin && tab === "admin-report" && <AdminReport reports={reports} setReports={setReports} users={users} settings={settings} />}
+      {isAdmin && tab === "admin-report" && <AdminReport reports={reports} setReports={setReports} users={users} settings={settings} isUnfolded={isUnfolded} />}
       {isAdmin && tab === "admin-finance" && <AdminFinance reports={reports} settings={settings} production={production} fixedCosts={fixedCosts} setFixedCosts={setFixedCosts} varCosts={varCosts} setVarCosts={setVarCosts} prodSettings={prodSettings} users={users} invLog={invLog} />}
-      {isAdmin && tab === "admin-chicken" && <AdminChicken production={production} setProduction={setProduction} prodSettings={prodSettings} setProdSettings={setProdSettings} reports={reports} />}
-      {isAdmin && tab === "admin-inv" && <AdminInventory inventoryItems={inventoryItems} setInventoryItems={setInventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} users={users} officeStock={officeStock} setOfficeStock={setOfficeStock} invLog={invLog} setInvLog={setInvLog} varCosts={varCosts} setVarCosts={setVarCosts} />}
-      {isAdmin && tab === "admin-emp" && <AdminEmployee users={users} setUsers={setUsers} settings={settings} setSettings={setSettings} schedules={schedules} setSchedules={setSchedules} reports={reports} setReports={setReports} />}
-      <BottomNav tabs={isAdmin ? aTabs : eTabs} active={tab} onSelect={setTab} />
+      {isAdmin && tab === "admin-chicken" && <AdminChicken production={production} setProduction={setProduction} prodSettings={prodSettings} setProdSettings={setProdSettings} reports={reports} isUnfolded={isUnfolded} />}
+      {isAdmin && tab === "admin-inv" && <AdminInventory inventoryItems={inventoryItems} setInventoryItems={setInventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} users={users} officeStock={officeStock} setOfficeStock={setOfficeStock} invLog={invLog} setInvLog={setInvLog} varCosts={varCosts} setVarCosts={setVarCosts} isUnfolded={isUnfolded} />}
+      {isAdmin && tab === "admin-emp" && <AdminEmployee users={users} setUsers={setUsers} settings={settings} setSettings={setSettings} schedules={schedules} setSchedules={setSchedules} reports={reports} setReports={setReports} isUnfolded={isUnfolded} />}
+    </div>
+  );
+
+  // ── 레이아웃 렌더 ──────────────────────────────────────────────────────────
+  return (
+    <div style={isUnfolded
+      ? { minHeight: "100vh", background: "#fafafa", display: "flex", flexDirection: "column" }
+      : { minHeight: "100vh", background: "#fafafa", maxWidth: 540, margin: "0 auto" }
+    }>
+      <Header title={titles[tab]} userName={user.name} onLogout={logout} />
+      {isUnfolded && <SideNav tabs={tabs} active={tab} onSelect={setTab} />}
+      <div style={isUnfolded ? { marginLeft: 280, minHeight: "calc(100vh - 61px)", overflowY: "auto" } : {}}>
+        {pageContent}
+      </div>
+      {!isUnfolded && <BottomNav tabs={tabs} active={tab} onSelect={setTab} />}
     </div>
   );
 }
