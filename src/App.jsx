@@ -132,9 +132,9 @@ function Toast(p) {
 
 function Header(p) {
   return (
-    <div style={{ padding: "18px 22px", background: "#fff", borderBottom: "1px solid #f0f0f3", position: "sticky", top: 0, zIndex: 50, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#18181b" }}>{p.title}</h1>
-      <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+    <div style={{ padding: "18px 22px", background: "#fff", borderBottom: "1px solid #f0f0f3", position: "sticky", top: 0, zIndex: 50, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 11 }}>
+      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#18181b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>{p.title}</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 11, flexShrink: 0 }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: "#71717a", background: "#f4f4f5", padding: "7px 13px", borderRadius: 9 }}>{p.userName}</span>
         <button onClick={p.onLogout} style={Object.assign({}, BO, { padding: "7px 13px", fontSize: 13, color: "#71717a" })}>로그아웃</button>
       </div>
@@ -182,11 +182,11 @@ function LoginScreen(p) {
     </div>
   );
   var keypad = (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,84px)", gap: 14 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, width: "100%", maxWidth: 296 }}>
       {[1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, "⌫"].map(function(n, i) {
         return (
           <button key={i} onClick={function() { if (n === "⌫") setPin(function(q) { return q.slice(0, -1); }); else if (n !== null) tap(String(n)); }}
-            style={{ width: 84, height: 84, borderRadius: 20, border: "1px solid #f0f0f3", background: n === null ? "transparent" : "#fafafa", color: "#18181b", fontSize: n === "⌫" ? 24 : 30, fontWeight: 600, cursor: n === null ? "default" : "pointer", visibility: n === null ? "hidden" : "visible", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            style={{ width: "100%", aspectRatio: "1", minHeight: 72, borderRadius: 20, border: "1px solid #f0f0f3", background: n === null ? "transparent" : "#fafafa", color: "#18181b", fontSize: n === "⌫" ? 24 : 30, fontWeight: 600, cursor: n === null ? "default" : "pointer", visibility: n === null ? "hidden" : "visible", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {n}
           </button>
         );
@@ -922,22 +922,22 @@ function EmpSalary(p) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 13, marginBottom: 18 }}>
         <div style={CS}>
           <p style={Object.assign({}, LS, { margin: "0 0 4px" })}>💰 월간 급여</p>
-          <p style={{ fontSize: 22, fontWeight: 800, color: "#e1360a", margin: "0 0 9px" }}>{formatCurrency(totals.month)}</p>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-            <span style={{ color: "#18181b", opacity: 0.4, fontWeight: 600 }}>지급 {formatCurrency(totals.mPaid)}</span>
+          <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: "0 0 9px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(totals.month)}</p>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+            <span style={{ color: "#18181b", opacity: 0.4, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>지급 {formatCurrency(totals.mPaid)}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 2 }}>
-            <span style={{ color: "#18181b", opacity: 0.4, fontWeight: 600 }}>미지급 {formatCurrency(totals.mUnpaid)}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+            <span style={{ color: "#18181b", opacity: 0.4, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>미지급 {formatCurrency(totals.mUnpaid)}</span>
           </div>
         </div>
         <div style={CS}>
           <p style={Object.assign({}, LS, { margin: "0 0 4px" })}>💰 주간 급여</p>
-          <p style={{ fontSize: 22, fontWeight: 800, color: "#e1360a", margin: "0 0 9px" }}>{formatCurrency(totals.week)}</p>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-            <span style={{ color: "#18181b", opacity: 0.4, fontWeight: 600 }}>지급 {formatCurrency(totals.wPaid)}</span>
+          <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: "0 0 9px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(totals.week)}</p>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+            <span style={{ color: "#18181b", opacity: 0.4, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>지급 {formatCurrency(totals.wPaid)}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginTop: 2 }}>
-            <span style={{ color: "#18181b", opacity: 0.4, fontWeight: 600 }}>미지급 {formatCurrency(totals.wUnpaid)}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 2 }}>
+            <span style={{ color: "#18181b", opacity: 0.4, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>미지급 {formatCurrency(totals.wUnpaid)}</span>
           </div>
         </div>
       </div>
@@ -952,9 +952,9 @@ function EmpSalary(p) {
                 <span style={{ fontWeight: 600, fontSize: 12 }}>{formatDate(r.date)}</span>
                 <span style={{ textAlign: "center", color: "#71717a" }}>{r.sold}개</span>
                 <span style={{ textAlign: "center", color: "#71717a" }}>{fmtHours(r.mins)}</span>
-                <span style={{ textAlign: "right", fontWeight: 700, color: "#e1360a" }}>{formatCurrency(r.pay)}</span>
+                <span style={{ textAlign: "right", fontWeight: 700, color: "#e1360a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{formatCurrency(r.pay)}</span>
                 <span style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: r.paid ? "#dcfce7" : "#fef2f2", color: r.paid ? "#16a34a" : "#e1360a" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 5px", borderRadius: 4, background: r.paid ? "#dcfce7" : "#fef2f2", color: r.paid ? "#16a34a" : "#e1360a", whiteSpace: "nowrap", display: "inline-block" }}>
                     {r.paid ? "지급" : "미지급"}
                   </span>
                 </span>
@@ -1124,25 +1124,25 @@ function AdminHome(p) {
           <div key={emp.id} style={Object.assign({}, CS, { marginBottom: 11, padding: "13px 18px" })}>
             <p style={{ fontSize: 16, fontWeight: 700, margin: "0 0 11px", color: "#18181b" }}>{emp.name}{(emp.status || "active") === "resigned" ? <span style={{ fontSize: 12, fontWeight: 600, color: "#e1360a", marginLeft: 7 }}>(퇴사)</span> : ""}</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 11 }}>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>누적</p>
                 <p style={{ fontSize: 16, fontWeight: 800, margin: "0 0 1px" }}>{ts}개</p>
-                <p style={{ fontSize: 12, color: "#e1360a", fontWeight: 600, margin: 0 }}>{formatCurrency(ts * price)}</p>
+                <p style={{ fontSize: 11, color: "#e1360a", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(ts * price)}</p>
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>{mLabel}</p>
                 <p style={{ fontSize: 16, fontWeight: 800, margin: "0 0 1px" }}>{ms}개</p>
-                <p style={{ fontSize: 12, color: "#e1360a", fontWeight: 600, margin: 0 }}>{formatCurrency(ms * price)}</p>
+                <p style={{ fontSize: 11, color: "#e1360a", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(ms * price)}</p>
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>최근7일</p>
                 <p style={{ fontSize: 16, fontWeight: 800, margin: "0 0 1px" }}>{ws}개</p>
-                <p style={{ fontSize: 12, color: "#e1360a", fontWeight: 600, margin: 0 }}>{formatCurrency(ws * price)}</p>
+                <p style={{ fontSize: 11, color: "#e1360a", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(ws * price)}</p>
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>{formatDate(selDay).split("(")[0].trim()}</p>
                 <p style={{ fontSize: 16, fontWeight: 800, margin: "0 0 1px" }}>{ds}개</p>
-                <p style={{ fontSize: 12, color: "#e1360a", fontWeight: 600, margin: 0 }}>{formatCurrency(ds * price)}</p>
+                <p style={{ fontSize: 11, color: "#e1360a", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(ds * price)}</p>
               </div>
             </div>
           </div>
@@ -2209,17 +2209,17 @@ function AdminEmployee(p) {
           <p style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{payName}</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 11, marginBottom: 20 }}>
-          <div style={Object.assign({}, CS, { textAlign: "center", padding: 13 })}>
+          <div style={Object.assign({}, CS, { textAlign: "center", padding: 13, minWidth: 0 })}>
             <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>총 급여</p>
-            <p style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{formatCurrency(payTotal)}</p>
+            <p style={{ fontSize: 15, fontWeight: 800, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(payTotal)}</p>
           </div>
-          <div style={Object.assign({}, CS, { textAlign: "center", padding: 13 })}>
+          <div style={Object.assign({}, CS, { textAlign: "center", padding: 13, minWidth: 0 })}>
             <p style={{ fontSize: 12, color: "#16a34a", margin: "0 0 2px", fontWeight: 600 }}>지급완료</p>
-            <p style={{ fontSize: 20, fontWeight: 800, color: "#16a34a", margin: 0 }}>{formatCurrency(payPaid)}</p>
+            <p style={{ fontSize: 15, fontWeight: 800, color: "#16a34a", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(payPaid)}</p>
           </div>
-          <div style={Object.assign({}, CS, { textAlign: "center", padding: 13 })}>
+          <div style={Object.assign({}, CS, { textAlign: "center", padding: 13, minWidth: 0 })}>
             <p style={{ fontSize: 12, color: "#e1360a", margin: "0 0 2px", fontWeight: 600 }}>미지급</p>
-            <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(payUnpaid)}</p>
+            <p style={{ fontSize: 15, fontWeight: 800, color: "#e1360a", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(payUnpaid)}</p>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.7fr 0.8fr 0.5fr", padding: "9px 9px", fontSize: 12, fontWeight: 600, color: "#a1a1aa", borderBottom: "1px solid #f0f0f3" }}>
@@ -2231,17 +2231,17 @@ function AdminEmployee(p) {
               <div key={py.rk} style={{ display: "grid", gridTemplateColumns: "1.2fr 0.7fr 0.8fr 0.5fr", padding: "11px 9px", borderBottom: "1px solid #f4f4f5", fontSize: 14, alignItems: "center" }}>
                 <div>
                   <p style={{ fontWeight: 600, margin: 0, fontSize: 14 }}>{formatDate(py.date)}</p>
-                  <p style={{ fontSize: 12, color: "#a1a1aa", margin: "2px 0 0" }}>{py.sold}개 · {Math.floor(py.mins / 60)}시간 {py.mins % 60}분</p>
+                  <p style={{ fontSize: 12, color: "#a1a1aa", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{py.sold}개 · {Math.floor(py.mins / 60)}시간 {py.mins % 60}분</p>
                 </div>
-                <span style={{ textAlign: "center", color: "#a1a1aa", fontSize: 13 }}>{formatCurrency(py.autoPay)}</span>
+                <span style={{ textAlign: "center", color: "#a1a1aa", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{formatCurrency(py.autoPay)}</span>
                 <div style={{ display: "flex", justifyContent: "center" }}>
                   <input type="number" value={py.pay} inputMode="numeric"
                     onChange={function(e) { updatePay(py.date, py.rk, "payOverride", e.target.value === "" ? undefined : Number(e.target.value)); }}
-                    style={{ width: "100%", padding: "7px 4px", borderRadius: 7, border: "1px solid " + (py.hasOverride ? "#e1360a" : "#f0f0f3"), fontSize: 14, fontWeight: 700, textAlign: "center", outline: "none", background: py.hasOverride ? "#fff8f6" : "#fafafa", color: "#18181b", boxSizing: "border-box" }} />
+                    style={{ width: "100%", padding: "7px 4px", borderRadius: 7, border: "1px solid " + (py.hasOverride ? "#e1360a" : "#f0f0f3"), fontSize: 13, fontWeight: 700, textAlign: "center", outline: "none", background: py.hasOverride ? "#fff8f6" : "#fafafa", color: "#18181b", boxSizing: "border-box" }} />
                 </div>
                 <div style={{ textAlign: "center" }}>
                   <button onClick={function() { updatePay(py.date, py.rk, "paid", !py.paid); }}
-                    style={{ border: "none", background: py.paid ? "#dcfce7" : "#fef2f2", color: py.paid ? "#16a34a" : "#e1360a", fontSize: 12, fontWeight: 700, padding: "6px 9px", borderRadius: 7, cursor: "pointer" }}>
+                    style={{ border: "none", background: py.paid ? "#dcfce7" : "#fef2f2", color: py.paid ? "#16a34a" : "#e1360a", fontSize: 11, fontWeight: 700, padding: "3px 6px", borderRadius: 7, cursor: "pointer", whiteSpace: "nowrap" }}>
                     {py.paid ? "지급" : "미지급"}
                   </button>
                 </div>
