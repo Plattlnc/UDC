@@ -61,22 +61,22 @@ function DatePicker(dp) {
   for (ci = 1; ci <= days; ci++) { cells.push(ci); }
 
   return (
-    <div style={Object.assign({}, CS, { padding: 18, marginBottom: 16 })}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <button onClick={prevM} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#71717a", padding: "4px 8px" }}>‹</button>
-        <span style={{ fontSize: 16, fontWeight: 800, color: "#18181b" }}>{year}년 {month}월</span>
-        <button onClick={nextM} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#71717a", padding: "4px 8px" }}>›</button>
+    <div style={Object.assign({}, CS, { padding: 20, marginBottom: 18 })}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+        <button onClick={prevM} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#71717a", padding: "4px 9px" }}>‹</button>
+        <span style={{ fontSize: 18, fontWeight: 800, color: "#18181b" }}>{year}년 {month}월</span>
+        <button onClick={nextM} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#71717a", padding: "4px 9px" }}>›</button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, textAlign: "center" }}>
         {dayNames.map(function(dn) {
-          return <div key={dn} style={{ fontSize: 11, fontWeight: 600, color: "#a1a1aa", padding: 4 }}>{dn}</div>;
+          return <div key={dn} style={{ fontSize: 12, fontWeight: 600, color: "#a1a1aa", padding: 4 }}>{dn}</div>;
         })}
         {cells.map(function(d, idx) {
           if (d === null) return <div key={"e" + idx} />;
           var isSel = selMonth && d === selDay;
           return (
             <button key={idx} onClick={function() { pick(d); }}
-              style={{ border: isSel ? "2px solid #e1360a" : "1px solid transparent", borderRadius: 10, background: isSel ? "#fff8f6" : "transparent", color: isSel ? "#e1360a" : "#18181b", fontSize: 14, fontWeight: isSel ? 700 : 500, cursor: "pointer", padding: "10px 0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              style={{ border: isSel ? "2px solid #e1360a" : "1px solid transparent", borderRadius: 11, background: isSel ? "#fff8f6" : "transparent", color: isSel ? "#e1360a" : "#18181b", fontSize: 15, fontWeight: isSel ? 700 : 500, cursor: "pointer", padding: "11px 0", display: "flex", alignItems: "center", justifyContent: "center" }}>
               {d}
             </button>
           );
@@ -655,7 +655,7 @@ function EmpReport(p) {
               </div>
               <div style={{ textAlign: "right" }}>
                 <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(item.rev)}</p>
-                <p style={{ fontSize: 11, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(item.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
+                <p style={{ fontSize: 12, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(item.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
               </div>
             </div>
           </div>
@@ -930,7 +930,7 @@ function EmpSalary(p) {
                 <span style={{ textAlign: "center", color: "#71717a" }}>{fmtHours(r.mins)}</span>
                 <span style={{ textAlign: "right", fontWeight: 700, color: "#e1360a" }}>{formatCurrency(r.pay)}</span>
                 <span style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: r.paid ? "#dcfce7" : "#fef2f2", color: r.paid ? "#16a34a" : "#e1360a" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: r.paid ? "#dcfce7" : "#fef2f2", color: r.paid ? "#16a34a" : "#e1360a" }}>
                     {r.paid ? "지급" : "미지급"}
                   </span>
                 </span>
@@ -1279,7 +1279,7 @@ function AdminFinance(p) {
   return (
     <div style={PAGE}>
       <div style={Object.assign({}, CS, { padding: 0, border: "none", overflow: "hidden", marginBottom: 16 })}>
-        <div style={{ padding: "20px 16px 14px", background: isProfit ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg,#e1360a,#c42d08)" }}>
+        <div style={{ padding: "22px 18px 16px", background: isProfit ? "linear-gradient(135deg,#16a34a,#15803d)" : "linear-gradient(135deg,#e1360a,#c42d08)" }}>
           <p style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.6)", margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.04em" }}>{thisMonthKey} 마진</p>
           <p style={{ fontSize: 36, fontWeight: 800, color: "#fff", margin: "0 0 4px" }}>{isProfit ? "+" : ""}{formatCurrency(margin)}</p>
           {!isProfit && breakEven > 0 && (
@@ -1316,23 +1316,23 @@ function AdminFinance(p) {
         </div>
       </div>
       {emps.length > 0 && empQuota > 0 && (
-        <div style={Object.assign({}, CS, { padding: 18, marginBottom: 16 })}>
-          <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>🎯 직원별 월 할당량</p>
+        <div style={Object.assign({}, CS, { padding: 20, marginBottom: 18 })}>
+          <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 9px" }}>🎯 직원별 월 할당량</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16, padding: "10px 8px", background: "#f9fafb", borderRadius: 8 }}>
             <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 11, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>총 직원</p>
+              <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>총 직원</p>
               <p style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{emps.length}명</p>
             </div>
             <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 11, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>전체 목표</p>
+              <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>전체 목표</p>
               <p style={{ fontSize: 18, fontWeight: 800, color: "#e1360a", margin: 0 }}>{empQuota * emps.length}개</p>
             </div>
             <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 11, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>1인당</p>
+              <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>1인당</p>
               <p style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{empQuota}개</p>
             </div>
           </div>
-          <p style={{ fontSize: 11, color: "#a1a1aa", margin: "0 0 10px" }}>고정비+생산비+변동비 ÷ {emps.length}명 ÷ {formatCurrency(price)} 기준</p>
+          <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 11px" }}>고정비+생산비+변동비 ÷ {emps.length}명 ÷ {formatCurrency(price)} 기준</p>
           {emps.map(function(emp) {
             var sold = empMonthSold[emp.id] || 0;
             var pct = empQuota > 0 ? Math.min(100, Math.round(sold / empQuota * 100)) : 0;
@@ -1340,10 +1340,10 @@ function AdminFinance(p) {
             return (
               <div key={emp.id} style={{ marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>{emp.name}{(emp.status || "active") === "resigned" ? <span style={{ fontSize: 11, color: "#e1360a", marginLeft: 4 }}>(퇴사)</span> : ""}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{emp.name}{(emp.status || "active") === "resigned" ? <span style={{ fontSize: 12, color: "#e1360a", marginLeft: 4 }}>(퇴사)</span> : ""}</span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: done ? "#16a34a" : "#e1360a" }}>{sold} / {empQuota}개</span>
                 </div>
-                <div style={{ height: 10, borderRadius: 4, background: "#f4f4f5", overflow: "hidden" }}>
+                <div style={{ height: 11, borderRadius: 4, background: "#f4f4f5", overflow: "hidden" }}>
                   <div style={{ height: "100%", borderRadius: 4, width: pct + "%", background: done ? "#16a34a" : "#e1360a", transition: "width 0.3s" }} />
                 </div>
               </div>
@@ -1384,8 +1384,8 @@ function AdminFinance(p) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 11 }}>
           <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>📊 변동비</p>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={function() { setVcView("month"); setVcShow(20); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 11 }, vcView === "month" ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>이번달</button>
-            <button onClick={function() { setVcView("all"); setVcShow(20); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 11 }, vcView === "all" ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>전체</button>
+            <button onClick={function() { setVcView("month"); setVcShow(20); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 12 }, vcView === "month" ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>이번달</button>
+            <button onClick={function() { setVcView("all"); setVcShow(20); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 12 }, vcView === "all" ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>전체</button>
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, padding: "6px 8px", background: "#f9fafb", borderRadius: 6 }}>
@@ -1553,7 +1553,7 @@ function AdminChicken(p) {
             {avgCost.date && <span style={{ fontSize: 12, color: "#18181b", opacity: 0.35, marginLeft: 6 }}>({avgCost.date.replace(/-/g, ".").substring(2)} 기준)</span>}
           </div>
         </div>
-        <p style={{ fontSize: 11, color: "#a1a1aa", margin: "6px 0 0" }}>최근 7건 기준 · 생산일지 기반 자동계산</p>
+        <p style={{ fontSize: 12, color: "#a1a1aa", margin: "6px 0 0" }}>최근 7건 기준 · 생산일지 기반 자동계산</p>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 11, marginBottom: 16 }}>
         <div style={CS}>
@@ -1590,7 +1590,7 @@ function AdminChicken(p) {
       </div>
       <div style={{ borderTop: "1px solid #f0f0f3", paddingTop: 12 }}>
         <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 9px" }}>📋 생산 목록</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 0.5fr 0.4fr 0.6fr 0.6fr 0.6fr 0.3fr", padding: "6px 6px", fontSize: 11, fontWeight: 600, color: "#a1a1aa" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 0.5fr 0.4fr 0.6fr 0.6fr 0.6fr 0.3fr", padding: "6px 6px", fontSize: 12, fontWeight: 600, color: "#a1a1aa" }}>
           <span>일자</span><span>분류</span><span style={{ textAlign: "center" }}>개수</span><span style={{ textAlign: "right" }}>생산가</span><span style={{ textAlign: "right" }}>제작비</span><span style={{ textAlign: "right" }}>꼬치당</span><span />
         </div>
         {sorted.slice(0, show).map(function(pr) {
@@ -1602,16 +1602,16 @@ function AdminChicken(p) {
           var q = Number(pr.qty) || 1;
           var perPiece = Math.round(matC / q) + prodCost + skewCost;
           return (
-            <div key={pr.id} style={{ display: "grid", gridTemplateColumns: "1fr 0.5fr 0.4fr 0.6fr 0.6fr 0.6fr 0.3fr", padding: "8px 6px", borderBottom: "1px solid #f4f4f5", fontSize: 12, alignItems: "center" }}>
-              <span style={{ fontWeight: 600, fontSize: 11 }}>{formatDate(pr.date)}</span>
+            <div key={pr.id} style={{ display: "grid", gridTemplateColumns: "1fr 0.5fr 0.4fr 0.6fr 0.6fr 0.6fr 0.3fr", padding: "9px 6px", borderBottom: "1px solid #f4f4f5", fontSize: 13, alignItems: "center" }}>
+              <span style={{ fontWeight: 600, fontSize: 12 }}>{formatDate(pr.date)}</span>
               <span style={{ color: pr.type === "sunsal" ? "#e1360a" : "#2563eb", fontWeight: 600 }}>{pr.type === "sunsal" ? "순살" : "파닭"}</span>
               <span style={{ textAlign: "center", fontWeight: 700 }}>{pr.qty}</span>
-              <span style={{ textAlign: "right", color: "#71717a", fontSize: 11 }}>{formatCurrency(matC)}</span>
-              <span style={{ textAlign: "right", color: "#71717a", fontSize: 11 }}>{formatCurrency(labC)}</span>
-              <span style={{ textAlign: "right", fontWeight: 700, color: "#e1360a", fontSize: 11 }}>{formatCurrency(perPiece)}</span>
+              <span style={{ textAlign: "right", color: "#71717a", fontSize: 12 }}>{formatCurrency(matC)}</span>
+              <span style={{ textAlign: "right", color: "#71717a", fontSize: 12 }}>{formatCurrency(labC)}</span>
+              <span style={{ textAlign: "right", fontWeight: 700, color: "#e1360a", fontSize: 12 }}>{formatCurrency(perPiece)}</span>
               <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                <button onClick={function() { openEdit(pr); }} style={{ border: "none", background: "none", color: "#71717a", fontSize: 11, cursor: "pointer", padding: 0 }}>✎</button>
-                <button onClick={function() { delEntry(pr.id); }} style={{ border: "none", background: "none", color: "#e1360a", fontSize: 11, cursor: "pointer", padding: 0 }}>✕</button>
+                <button onClick={function() { openEdit(pr); }} style={{ border: "none", background: "none", color: "#71717a", fontSize: 12, cursor: "pointer", padding: 0 }}>✎</button>
+                <button onClick={function() { delEntry(pr.id); }} style={{ border: "none", background: "none", color: "#e1360a", fontSize: 12, cursor: "pointer", padding: 0 }}>✕</button>
               </div>
             </div>
           );
@@ -1654,7 +1654,7 @@ function AdminChicken(p) {
                   <span style={{ fontWeight: 700 }}>합계</span>
                   <span style={{ fontWeight: 800, color: "#e1360a" }}>{formatCurrency(fMatCost + fLabCost)}</span>
                 </div>
-                {fQty > 0 && <p style={{ fontSize: 11, color: "#a1a1aa", margin: "4px 0 0", textAlign: "right" }}>꼬치당 {formatCurrency(Math.round(fMatCost / fQty) + prodCost + skewCost)}</p>}
+                {fQty > 0 && <p style={{ fontSize: 12, color: "#a1a1aa", margin: "4px 0 0", textAlign: "right" }}>꼬치당 {formatCurrency(Math.round(fMatCost / fQty) + prodCost + skewCost)}</p>}
               </div>
             )}
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
@@ -1867,9 +1867,9 @@ function AdminInventory(p) {
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <button onClick={function() { moveItem(idx, -1); }} disabled={idx === 0}
-                    style={{ border: "none", background: "none", fontSize: 11, cursor: idx === 0 ? "default" : "pointer", color: idx === 0 ? "#d4d4d8" : "#71717a", padding: 0, lineHeight: 1 }}>▲</button>
+                    style={{ border: "none", background: "none", fontSize: 12, cursor: idx === 0 ? "default" : "pointer", color: idx === 0 ? "#d4d4d8" : "#71717a", padding: 0, lineHeight: 1 }}>▲</button>
                   <button onClick={function() { moveItem(idx, 1); }} disabled={idx === items.length - 1}
-                    style={{ border: "none", background: "none", fontSize: 11, cursor: idx === items.length - 1 ? "default" : "pointer", color: idx === items.length - 1 ? "#d4d4d8" : "#71717a", padding: 0, lineHeight: 1 }}>▼</button>
+                    style={{ border: "none", background: "none", fontSize: 12, cursor: idx === items.length - 1 ? "default" : "pointer", color: idx === items.length - 1 ? "#d4d4d8" : "#71717a", padding: 0, lineHeight: 1 }}>▼</button>
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 600 }}>{item.name}</span>
                 {isEditing ? (
@@ -1882,7 +1882,7 @@ function AdminInventory(p) {
                   <span onClick={function() { setEditPriceId(item.id); setEditPriceVal(String(item.unitPrice || 0)); }} style={{ fontSize: 12, color: "#71717a", cursor: "pointer", textDecoration: "underline dotted" }}>@{formatCurrency(item.unitPrice || 0)}</span>
                 )}
               </div>
-              <button onClick={function() { delItem(item.id); }} style={Object.assign({}, BO, { padding: "2px 8px", fontSize: 11, color: "#e1360a", borderColor: "#f5c6c0" })}>삭제</button>
+              <button onClick={function() { delItem(item.id); }} style={Object.assign({}, BO, { padding: "2px 9px", fontSize: 12, color: "#e1360a", borderColor: "#f5c6c0" })}>삭제</button>
             </div>
           );
         })}
@@ -1908,7 +1908,7 @@ function AdminInventory(p) {
                     {isRecv ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <input type="number" value={recvQty} onChange={function(e) { setRecvQty(e.target.value); }} placeholder="수량" style={Object.assign({}, IS, { width: 60, padding: "2px 6px", fontSize: 12 })} inputMode="numeric" />
-                        <button onClick={function() { receiveStock(item.id); }} style={Object.assign({}, BO, { padding: "2px 8px", fontSize: 11, color: "#16a34a", borderColor: "#bbf7d0" })}>확인</button>
+                        <button onClick={function() { receiveStock(item.id); }} style={Object.assign({}, BO, { padding: "2px 9px", fontSize: 12, color: "#16a34a", borderColor: "#bbf7d0" })}>확인</button>
                         <button onClick={function() { setRecvItemId(null); setRecvQty(""); }} style={{ border: "none", background: "none", color: "#a1a1aa", fontSize: 12, cursor: "pointer" }}>✕</button>
                       </div>
                     ) : (
@@ -1987,7 +1987,7 @@ function AdminInventory(p) {
           <div style={{ display: "flex", gap: 6 }}>
             {["day", "week", "month"].map(function(pd) {
               var labels = { day: "일", week: "주", month: "월" };
-              return <button key={pd} onClick={function() { setStatsPeriod(pd); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 11 }, statsPeriod === pd ? { background: "#2563eb", color: "#fff", borderColor: "#2563eb" } : {})}>{labels[pd]}</button>;
+              return <button key={pd} onClick={function() { setStatsPeriod(pd); }} style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 12 }, statsPeriod === pd ? { background: "#2563eb", color: "#fff", borderColor: "#2563eb" } : {})}>{labels[pd]}</button>;
             })}
           </div>
         </div>
@@ -2034,11 +2034,11 @@ function AdminInventory(p) {
                 <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f4f4f5" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: isIn ? "#16a34a" : "#e1360a", padding: "1px 6px", borderRadius: 4, background: isIn ? "#f0fdf4" : "#fef2f2" }}>{isIn ? "입고" : "출고"}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: isIn ? "#16a34a" : "#e1360a", padding: "1px 7px", borderRadius: 4, background: isIn ? "#f0fdf4" : "#fef2f2" }}>{isIn ? "입고" : "출고"}</span>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{l.itemName}</span>
                       <span style={{ fontSize: 13, fontWeight: 800 }}>{l.qty}개</span>
                     </div>
-                    <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: "#a1a1aa", marginTop: 2 }}>
                       {formatDate(l.date)}{l.empName ? " · " + l.empName : ""}{l.totalCost > 0 ? " · " + formatCurrency(l.totalCost) : ""}
                     </div>
                   </div>
@@ -2249,24 +2249,24 @@ function AdminEmployee(p) {
               var sch = (schedules || {})[emp.id] || {};
               var mainRow = [
                 <div key={emp.id + "_n"} style={{ fontWeight: 600, color: "#18181b", fontSize: 12, gridRow: "span 2", display: "flex", alignItems: "center" }}>{emp.name}</div>,
-                <div key={emp.id + "_ml"} style={{ fontSize: 11, fontWeight: 700, color: "#e1360a", display: "flex", alignItems: "center" }}>메인</div>
+                <div key={emp.id + "_ml"} style={{ fontSize: 12, fontWeight: 700, color: "#e1360a", display: "flex", alignItems: "center" }}>메인</div>
               ].concat(dayKeys.map(function(dk) {
                 var v = sch[dk + "_main"] || "";
                 if (schEdit) {
                   return <input key={emp.id + "_m_" + dk} value={v} placeholder="-"
                     onChange={function(e) { updateSchedule(emp.id, dk + "_main", e.target.value); }}
-                    style={{ width: "100%", padding: "3px 2px", borderRadius: 4, border: "1px solid #f0f0f3", fontSize: 11, fontWeight: 600, textAlign: "center", outline: "none", background: "#fff", color: "#e1360a", boxSizing: "border-box" }} />;
+                    style={{ width: "100%", padding: "3px 2px", borderRadius: 4, border: "1px solid #f0f0f3", fontSize: 12, fontWeight: 600, textAlign: "center", outline: "none", background: "#fff", color: "#e1360a", boxSizing: "border-box" }} />;
                 }
                 return <div key={emp.id + "_m_" + dk} style={{ textAlign: "center", padding: "3px 2px", background: v ? "#fff8f6" : "#fafafa", borderRadius: 4, color: v ? "#e1360a" : "#d4d4d8", fontWeight: 600 }}>{v || "-"}</div>;
               }));
               var subRow = [
-                <div key={emp.id + "_sl"} style={{ fontSize: 11, fontWeight: 600, color: "#a1a1aa", display: "flex", alignItems: "center" }}>서브</div>
+                <div key={emp.id + "_sl"} style={{ fontSize: 12, fontWeight: 600, color: "#a1a1aa", display: "flex", alignItems: "center" }}>서브</div>
               ].concat(dayKeys.map(function(dk) {
                 var v = sch[dk + "_sub"] || "";
                 if (schEdit) {
                   return <input key={emp.id + "_s_" + dk} value={v} placeholder="-"
                     onChange={function(e) { updateSchedule(emp.id, dk + "_sub", e.target.value); }}
-                    style={{ width: "100%", padding: "3px 2px", borderRadius: 4, border: "1px solid #f0f0f3", fontSize: 11, fontWeight: 600, textAlign: "center", outline: "none", background: "#fff", color: "#16a34a", boxSizing: "border-box" }} />;
+                    style={{ width: "100%", padding: "3px 2px", borderRadius: 4, border: "1px solid #f0f0f3", fontSize: 12, fontWeight: 600, textAlign: "center", outline: "none", background: "#fff", color: "#16a34a", boxSizing: "border-box" }} />;
                 }
                 return <div key={emp.id + "_s_" + dk} style={{ textAlign: "center", padding: "3px 2px", background: v ? "#f0fdf4" : "#fafafa", borderRadius: 4, color: v ? "#16a34a" : "#d4d4d8", fontWeight: 600 }}>{v || "-"}</div>;
               }));
@@ -2282,7 +2282,7 @@ function AdminEmployee(p) {
           {[{ k: "all", l: "전체" }, { k: "active", l: "재직" }, { k: "resigned", l: "퇴사" }].map(function(f) {
             return (
               <button key={f.k} onClick={function() { setEmpFilter(f.k); }}
-                style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 11 }, empFilter === f.k ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>
+                style={Object.assign({}, BO, { padding: "4px 10px", fontSize: 12 }, empFilter === f.k ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>
                 {f.l}
               </button>
             );
@@ -2595,7 +2595,7 @@ function AdminReport(p) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <p style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{selEmp.name}</p>
             {(selEmp.status || "active") !== "active" && (
-              <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: (selEmp.status || "active") === "resigned" ? "#fef2f2" : "#f4f4f5", color: (selEmp.status || "active") === "resigned" ? "#e1360a" : "#a1a1aa" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: (selEmp.status || "active") === "resigned" ? "#fef2f2" : "#f4f4f5", color: (selEmp.status || "active") === "resigned" ? "#e1360a" : "#a1a1aa" }}>
                 {(selEmp.status || "active") === "resigned" ? "퇴사" : "삭제됨"}
               </span>
             )}
@@ -2667,7 +2667,7 @@ function AdminReport(p) {
                     <span style={{ fontSize: 22, color: "#fff", fontWeight: 800 }}>{emp.name.charAt(0)}</span>
                   </div>
                   <p style={{ fontSize: 16, fontWeight: 700, margin: "0 0 2px", color: "#18181b" }}>{emp.name}</p>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: empStatus === "resigned" ? "#fef2f2" : "#f4f4f5", color: empStatus === "resigned" ? "#e1360a" : "#a1a1aa" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, padding: "1px 7px", borderRadius: 4, background: empStatus === "resigned" ? "#fef2f2" : "#f4f4f5", color: empStatus === "resigned" ? "#e1360a" : "#a1a1aa" }}>
                     {empStatus === "resigned" ? "퇴사" : "삭제됨"}
                   </span>
                   <p style={{ fontSize: 13, color: "#a1a1aa", margin: "7px 0 0" }}>일보 {st.count}건</p>
