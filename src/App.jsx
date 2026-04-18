@@ -2266,7 +2266,7 @@ function AdminEmployee(p) {
           </button>
         </div>
         <div style={{ overflowX: "auto", paddingBottom: 4 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "57px 30px repeat(6, " + (schEdit ? "100px" : "88px") + ")", gap: 4, fontSize: 12, minWidth: schEdit ? 720 : 650 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "57px 30px repeat(6, " + (schEdit ? "200px" : "88px") + ")", gap: 4, fontSize: 12, minWidth: schEdit ? 1320 : 650 }}>
             <div /><div />
             {dayLabels.map(function(d) { return <div key={d} style={{ textAlign: "center", fontWeight: 700, color: "#71717a", padding: "4px 0" }}>{d}</div>; })}
             {allEmps.filter(function(u) { return (u.status || "active") === "active"; }).map(function(emp) {
