@@ -2266,7 +2266,7 @@ function AdminEmployee(p) {
           </button>
         </div>
         <div style={{ overflowX: "auto", paddingBottom: 4 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "57px 30px repeat(6, " + (schEdit ? "200px" : "88px") + ")", gap: 4, fontSize: 12, minWidth: schEdit ? 1320 : 650 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "57px 30px repeat(6, " + (schEdit ? "140px" : "88px") + ")", gap: schEdit ? 6 : 4, fontSize: 12, minWidth: schEdit ? 970 : 650 }}>
             <div /><div />
             {dayLabels.map(function(d) { return <div key={d} style={{ textAlign: "center", fontWeight: 700, color: "#71717a", padding: "4px 0" }}>{d}</div>; })}
             {allEmps.filter(function(u) { return (u.status || "active") === "active"; }).map(function(emp) {
@@ -2279,7 +2279,7 @@ function AdminEmployee(p) {
                 if (schEdit) {
                   return <input key={emp.id + "_m_" + dk} value={v} placeholder="-"
                     onChange={function(e) { updateSchedule(emp.id, dk + "_main", e.target.value); }}
-                    style={{ width: "100%", padding: "3px 2px", borderRadius: 4, border: "1px solid #f0f0f3", fontSize: 12, fontWeight: 600, textAlign: "center", outline: "none", background: "#fff", color: "#e1360a", boxSizing: "border-box" }} />;
+                    style={{ width: "100%", padding: "8px 6px", borderRadius: 6, border: "1px solid #f0f0f3", fontSize: 12, fontWeight: 600, textAlign: "center", outline: "none", background: "#fff", color: "#e1360a", boxSizing: "border-box" }} />;
                 }
                 return <div key={emp.id + "_m_" + dk} style={{ textAlign: "center", padding: "3px 2px", background: v ? "#fff8f6" : "#fafafa", borderRadius: 4, color: v ? "#e1360a" : "#d4d4d8", fontWeight: 600 }}>{v || "-"}</div>;
               }));
@@ -2290,7 +2290,7 @@ function AdminEmployee(p) {
                 if (schEdit) {
                   return <input key={emp.id + "_s_" + dk} value={v} placeholder="-"
                     onChange={function(e) { updateSchedule(emp.id, dk + "_sub", e.target.value); }}
-                    style={{ width: "100%", padding: "3px 2px", borderRadius: 4, border: "1px solid #f0f0f3", fontSize: 12, fontWeight: 600, textAlign: "center", outline: "none", background: "#fff", color: "#16a34a", boxSizing: "border-box" }} />;
+                    style={{ width: "100%", padding: "8px 6px", borderRadius: 6, border: "1px solid #f0f0f3", fontSize: 12, fontWeight: 600, textAlign: "center", outline: "none", background: "#fff", color: "#16a34a", boxSizing: "border-box" }} />;
                 }
                 return <div key={emp.id + "_s_" + dk} style={{ textAlign: "center", padding: "3px 2px", background: v ? "#f0fdf4" : "#fafafa", borderRadius: 4, color: v ? "#16a34a" : "#d4d4d8", fontWeight: 600 }}>{v || "-"}</div>;
               }));
