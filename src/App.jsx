@@ -440,7 +440,7 @@ function EmpVehicle(p) {
       <div style={Object.assign({}, CS, { padding: 16 })}>
         <p style={{ fontSize: 15, fontWeight: 700, color: "#18181b", margin: "0 0 13px" }}>📍 주간 출근지</p>
         <div style={{ overflowX: "auto", paddingBottom: 4 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "48px repeat(6, 88px)", gap: 9, minWidth: 580 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "48px repeat(6, 110px)", gap: 9, minWidth: 720 }}>
             <div />
             {dayLabels.map(function(label) {
               return <div key={label} style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: "#71717a", padding: "4px 0" }}>{label}</div>;
@@ -2266,7 +2266,7 @@ function AdminEmployee(p) {
           </button>
         </div>
         <div style={{ overflowX: "auto", paddingBottom: 4 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "57px 30px repeat(6, " + (schEdit ? "79px" : "70px") + ")", gap: 3, fontSize: 12, minWidth: schEdit ? 560 : 516 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "57px 30px repeat(6, " + (schEdit ? "100px" : "88px") + ")", gap: 4, fontSize: 12, minWidth: schEdit ? 720 : 650 }}>
             <div /><div />
             {dayLabels.map(function(d) { return <div key={d} style={{ textAlign: "center", fontWeight: 700, color: "#71717a", padding: "4px 0" }}>{d}</div>; })}
             {allEmps.filter(function(u) { return (u.status || "active") === "active"; }).map(function(emp) {
