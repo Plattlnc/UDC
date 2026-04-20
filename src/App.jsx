@@ -599,13 +599,13 @@ function EmpReport(p) {
             })()}
           </div>
           <div style={{ display: "flex", gap: 12 }}>
-            <div style={{ flex: "0 1 140px" }}>
+            <div style={{ flex: 1 }}>
               <label style={LS}>출근</label>
               <input type="time" value={formData.clockIn} disabled={!editing}
                 onChange={function(e) { up("clockIn", e.target.value); }}
                 style={Object.assign({}, IS, { width: "100%" }, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
             </div>
-            <div style={{ flex: "0 1 140px" }}>
+            <div style={{ flex: 1 }}>
               <label style={LS}>퇴근</label>
               <input type="time" value={formData.clockOut} disabled={!editing}
                 onChange={function(e) { up("clockOut", e.target.value); }}
@@ -2547,13 +2547,13 @@ function AdminReport(p) {
             })()}
           </div>
           <div style={{ display: "flex", gap: 12 }}>
-            <div style={{ flex: "0 1 140px" }}>
+            <div style={{ flex: 1 }}>
               <label style={LS}>출근</label>
               <input type="time" value={formData.clockIn} disabled={!editing}
                 onChange={function(e) { up("clockIn", e.target.value); }}
                 style={Object.assign({}, IS, { width: "100%" }, !editing ? { background: "#f4f4f5", color: "#a1a1aa" } : {})} />
             </div>
-            <div style={{ flex: "0 1 140px" }}>
+            <div style={{ flex: 1 }}>
               <label style={LS}>퇴근</label>
               <input type="time" value={formData.clockOut} disabled={!editing}
                 onChange={function(e) { up("clockOut", e.target.value); }}
