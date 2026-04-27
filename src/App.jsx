@@ -503,6 +503,10 @@ function EmpReport(p) {
   var r8 = useState(today), newDate = r8[0], setNewDate = r8[1];
   var r9 = useState(null), selDate = r9[0], setSelDate = r9[1];
   var r10 = useState(false), showCal = r10[0], setShowCal = r10[1];
+  var nowR = new Date();
+  var rv1 = useState(nowR.getFullYear()), viewYear = rv1[0], setViewYear = rv1[1];
+  var rv2 = useState(nowR.getMonth() + 1), viewMonth = rv2[0], setViewMonth = rv2[1];
+  var rv3 = useState(false), viewAll = rv3[0], setViewAll = rv3[1];
 
   var list = useMemo(function() {
     var l = [];
@@ -682,43 +686,46 @@ function EmpReport(p) {
     );
   }
 
-  var flatItems = useMemo(function() {
-    if (sortBy !== "date") return null;
-    var g = {};
-    list.forEach(function(r) { var m = getMonthLabel(r.date); if (!g[m]) g[m] = []; g[m].push(r); });
-    var items = [];
-    Object.entries(g).forEach(function(e) { items.push({ type: "header", month: e[0] }); e[1].forEach(function(r) { items.push({ type: "row", data: r }); }); });
-    return items;
-  }, [list, sortBy]);
+  var viewMonthKey = viewYear + "-" + String(viewMonth).padStart(2, "0");
+  var filteredList = useMemo(function() {
+    if (viewAll) return list;
+    return list.filter(function(r) { return r.date.substring(0, 7) === viewMonthKey; });
+  }, [list, viewMonthKey, viewAll]);
+
+  var monthSummary = useMemo(function() {
+    var sold = 0, rev = 0;
+    filteredList.forEach(function(r) { sold += r.sold; rev += r.rev; });
+    return { sold: sold, rev: rev, count: filteredList.length };
+  }, [filteredList]);
+
+  function prevMonth() { if (viewMonth === 1) { setViewMonth(12); setViewYear(viewYear - 1); } else { setViewMonth(viewMonth - 1); } setShow(10); }
+  function nextMonth() { if (viewMonth === 12) { setViewMonth(1); setViewYear(viewYear + 1); } else { setViewMonth(viewMonth + 1); } setShow(10); }
 
   return (
     <div style={PAGE}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         <button onClick={function() { setSortBy("date"); setShow(10); }} style={Object.assign({}, BO, { padding: "6px 14px", fontSize: 13 }, sortBy === "date" ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>날짜순</button>
         <button onClick={function() { setSortBy("revenue"); setShow(10); }} style={Object.assign({}, BO, { padding: "6px 14px", fontSize: 13 }, sortBy === "revenue" ? { background: "#e1360a", color: "#fff", borderColor: "#e1360a" } : {})}>매출순</button>
+        <div style={{ flex: 1 }} />
+        <button onClick={function() { setViewAll(!viewAll); setShow(10); }} style={Object.assign({}, BO, { padding: "6px 14px", fontSize: 13 }, viewAll ? { background: "#18181b", color: "#fff", borderColor: "#18181b" } : {})}>전체</button>
       </div>
-      {list.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 48, color: "#a1a1aa", fontSize: 14 }}>작성된 일보가 없습니다</div>
-      ) : sortBy === "date" && flatItems ? flatItems.slice(0, show).map(function(item, i) {
-        if (item.type === "header") {
-          return <p key={"h" + i} style={{ fontSize: 15, fontWeight: 700, color: "#e1360a", margin: "18px 0 9px", padding: "9px 0", borderBottom: "1px solid #f4f4f5" }}>{item.month}</p>;
-        }
-        var r = item.data;
-        return (
-          <div key={"r" + i} onClick={function() { openReport(r.date, r.rk); }} style={Object.assign({}, CS, { marginBottom: 11, padding: "16px 18px", cursor: "pointer" })}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{formatDate(r.date)}</p>
-                <p style={{ fontSize: 13, color: "#a1a1aa", margin: "4px 0 0" }}>출고 {(Number(r.ship_sunsal) || 0) + (Number(r.ship_padak) || 0)} · 판매 {r.sold} · 로스 {r.loss}</p>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(r.rev)}</p>
-                <p style={{ fontSize: 12, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(r.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
-              </div>
-            </div>
+      {!viewAll && (
+        <div style={Object.assign({}, CS, { padding: "12px 16px", marginBottom: 16 })}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <button onClick={prevMonth} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#71717a", padding: "4px 9px" }}>{"\u25C0"}</button>
+            <span style={{ fontSize: 17, fontWeight: 800, color: "#18181b" }}>{viewYear}년 {viewMonth}월</span>
+            <button onClick={nextMonth} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#71717a", padding: "4px 9px" }}>{"\u25B6"}</button>
           </div>
-        );
-      }) : list.slice(0, show).map(function(item, i) {
+          <div style={{ display: "flex", justifyContent: "center", gap: 20 }}>
+            <span style={{ fontSize: 13, color: "#71717a" }}>{monthSummary.count}건</span>
+            <span style={{ fontSize: 13, color: "#71717a" }}>판매 {monthSummary.sold}개</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#e1360a" }}>{formatCurrency(monthSummary.rev)}</span>
+          </div>
+        </div>
+      )}
+      {filteredList.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 48, color: "#a1a1aa", fontSize: 14 }}>{viewAll ? "작성된 일보가 없습니다" : viewYear + "년 " + viewMonth + "월 일보가 없습니다"}</div>
+      ) : filteredList.slice(0, show).map(function(item, i) {
         return (
           <div key={i} onClick={function() { openReport(item.date, item.rk); }} style={Object.assign({}, CS, { marginBottom: 11, padding: "16px 18px", cursor: "pointer" })}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -734,7 +741,7 @@ function EmpReport(p) {
           </div>
         );
       })}
-      {(sortBy === "date" && flatItems ? show < flatItems.length : show < list.length) && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 13, color: "#71717a" })}>더 보기</button>}
+      {show < filteredList.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 13, color: "#71717a" })}>더 보기</button>}
       <button onClick={openNew} style={{ position: "fixed", bottom: p.isUnfolded ? 28 : 96, right: p.isUnfolded ? 28 : 20, width: 62, height: 62, borderRadius: 31, background: "#e1360a", color: "#fff", border: "none", fontSize: 30, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(225,54,10,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 90 }}>+</button>
     </div>
   );
@@ -2464,6 +2471,10 @@ function AdminReport(p) {
   var r3 = useState(null), selDate = r3[0], setSelDate = r3[1];
   var r4 = useState(10), show = r4[0], setShow = r4[1];
   var r5 = useState(""), toast = r5[0], setToast = r5[1];
+  var nowAR = new Date();
+  var arv1 = useState(nowAR.getFullYear()), arViewYear = arv1[0], setArViewYear = arv1[1];
+  var arv2 = useState(nowAR.getMonth() + 1), arViewMonth = arv2[0], setArViewMonth = arv2[1];
+  var arv3 = useState(false), arViewAll = arv3[0], setArViewAll = arv3[1];
   var emptyForm = { clockIn: "", clockOut: "", ship_sunsal: "", ship_padak: "", sunsal: "", padak: "", loss: "", chobeol: "", transfer: "", cash: "" };
   var r6 = useState(emptyForm), formData = r6[0], setFormData = r6[1];
   var r7 = useState(false), editing = r7[0], setEditing = r7[1];
@@ -2660,14 +2671,21 @@ function AdminReport(p) {
   }
 
   // 직원 선택 → 일보 리스트
-  var adminFlatItems = useMemo(function() {
+  var arMonthKey = arViewYear + "-" + String(arViewMonth).padStart(2, "0");
+  var adminFiltered = useMemo(function() {
     if (!selEmpId) return [];
-    var g = {};
-    list.forEach(function(r) { var m = getMonthLabel(r.date); if (!g[m]) g[m] = []; g[m].push(r); });
-    var items = [];
-    Object.entries(g).forEach(function(e) { items.push({ type: "header", month: e[0] }); e[1].forEach(function(r) { items.push({ type: "row", data: r }); }); });
-    return items;
-  }, [list, selEmpId]);
+    if (arViewAll) return list;
+    return list.filter(function(r) { return r.date.substring(0, 7) === arMonthKey; });
+  }, [list, selEmpId, arMonthKey, arViewAll]);
+
+  var adminMonthSummary = useMemo(function() {
+    var sold = 0, rev = 0;
+    adminFiltered.forEach(function(r) { sold += r.sold; rev += r.rev; });
+    return { sold: sold, rev: rev, count: adminFiltered.length };
+  }, [adminFiltered]);
+
+  function arPrevMonth() { if (arViewMonth === 1) { setArViewMonth(12); setArViewYear(arViewYear - 1); } else { setArViewMonth(arViewMonth - 1); } setShow(10); }
+  function arNextMonth() { if (arViewMonth === 12) { setArViewMonth(1); setArViewYear(arViewYear + 1); } else { setArViewMonth(arViewMonth + 1); } setShow(10); }
 
   if (selEmpId && selEmp) {
     return (
@@ -2683,35 +2701,48 @@ function AdminReport(p) {
             )}
           </div>
         </div>
-        <div style={Object.assign({}, CS, { padding: "11px 16px", marginBottom: 16, background: "#fff8f6" })}>
+        <div style={Object.assign({}, CS, { padding: "11px 16px", marginBottom: 12, background: "#fff8f6" })}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "#71717a" }}>총 {list.length}건</span>
             <span style={{ fontSize: 15, fontWeight: 800, color: "#e1360a" }}>{formatCurrency((empStats[selEmpId] || {}).totalRev || 0)}</span>
           </div>
         </div>
-        {list.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 48, color: "#a1a1aa", fontSize: 14 }}>작성된 일보가 없습니다</div>
-        ) : adminFlatItems.slice(0, show).map(function(item, i) {
-          if (item.type === "header") {
-            return <p key={"h" + i} style={{ fontSize: 15, fontWeight: 700, color: "#e1360a", margin: "18px 0 9px", padding: "9px 0", borderBottom: "1px solid #f4f4f5" }}>{item.month}</p>;
-          }
-          var r = item.data;
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          <button onClick={function() { setArViewAll(!arViewAll); setShow(10); }} style={Object.assign({}, BO, { padding: "6px 14px", fontSize: 13 }, arViewAll ? { background: "#18181b", color: "#fff", borderColor: "#18181b" } : {})}>전체</button>
+        </div>
+        {!arViewAll && (
+          <div style={Object.assign({}, CS, { padding: "12px 16px", marginBottom: 16 })}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <button onClick={arPrevMonth} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#71717a", padding: "4px 9px" }}>{"\u25C0"}</button>
+              <span style={{ fontSize: 17, fontWeight: 800, color: "#18181b" }}>{arViewYear}년 {arViewMonth}월</span>
+              <button onClick={arNextMonth} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#71717a", padding: "4px 9px" }}>{"\u25B6"}</button>
+            </div>
+            <div style={{ display: "flex", justifyContent: "center", gap: 20 }}>
+              <span style={{ fontSize: 13, color: "#71717a" }}>{adminMonthSummary.count}건</span>
+              <span style={{ fontSize: 13, color: "#71717a" }}>판매 {adminMonthSummary.sold}개</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#e1360a" }}>{formatCurrency(adminMonthSummary.rev)}</span>
+            </div>
+          </div>
+        )}
+        {adminFiltered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 48, color: "#a1a1aa", fontSize: 14 }}>{arViewAll ? "작성된 일보가 없습니다" : arViewYear + "년 " + arViewMonth + "월 일보가 없습니다"}</div>
+        ) : adminFiltered.slice(0, show).map(function(item, i) {
           return (
-            <div key={"r" + i} onClick={function() { openReport(r.date, r.rk); }} style={Object.assign({}, CS, { marginBottom: 10, padding: "16px 18px", cursor: "pointer" })}>
+            <div key={i} onClick={function() { openReport(item.date, item.rk); }} style={Object.assign({}, CS, { marginBottom: 10, padding: "16px 18px", cursor: "pointer" })}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{formatDate(r.date)}</p>
-                  <p style={{ fontSize: 13, color: "#a1a1aa", margin: "4px 0 0" }}>출고 {(Number(r.ship_sunsal) || 0) + (Number(r.ship_padak) || 0)} · 판매 {r.sold} · 로스 {r.loss}</p>
+                  <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{formatDate(item.date)}</p>
+                  <p style={{ fontSize: 13, color: "#a1a1aa", margin: "4px 0 0" }}>출고 {(Number(item.ship_sunsal) || 0) + (Number(item.ship_padak) || 0)} · 판매 {item.sold} · 로스 {item.loss}</p>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(r.rev)}</p>
-                  <p style={{ fontSize: 12, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(r.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(item.rev)}</p>
+                  <p style={{ fontSize: 12, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(item.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
                 </div>
               </div>
             </div>
           );
         })}
-        {show < adminFlatItems.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 14, color: "#71717a" })}>더 보기</button>}
+        {show < adminFiltered.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 14, color: "#71717a" })}>더 보기</button>}
         <Toast msg={toast} isUnfolded={p.isUnfolded} />
       </div>
     );
