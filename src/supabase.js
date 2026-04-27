@@ -38,6 +38,26 @@ export const store = {
         return true;
       })
       .catch(function(e) { console.error('[store.set] 네트워크 오류:', key, e); return false; });
+  },
+  merge: function(key, partialData, fallback) {
+    return store.get(key, fallback || {}).then(function(current) {
+      var merged;
+      if (current && typeof current === "object" && !Array.isArray(current)) {
+        merged = Object.assign({}, current);
+        Object.keys(partialData).forEach(function(k) {
+          if (partialData[k] === null || partialData[k] === undefined) {
+            delete merged[k];
+          } else if (typeof partialData[k] === "object" && !Array.isArray(partialData[k]) && merged[k] && typeof merged[k] === "object") {
+            merged[k] = Object.assign({}, merged[k], partialData[k]);
+          } else {
+            merged[k] = partialData[k];
+          }
+        });
+      } else {
+        merged = partialData;
+      }
+      return store.set(key, merged).then(function(ok) { return ok ? merged : false; });
+    });
   }
 };
 
@@ -58,4 +78,11 @@ export function syncToSheets(payload) {
     headers: { "Content-Type": "text/plain" },
     body: JSON.stringify({ action: "sync_all", payload: payload })
   }).then(function(res) { return res.json(); });
+}
+
+export function readFromSheets() {
+  var url = getSheetsUrl();
+  if (!url) return Promise.reject(new Error("Sheets URL 미설정"));
+  return fetch(url + "?action=readReports")
+    .then(function(res) { return res.json(); });
 }

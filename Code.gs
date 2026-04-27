@@ -363,6 +363,73 @@ function writeProdSettings(sheet, data) {
   w(sheet, headers, rows, [1]);
 }
 
+function doGet(e) {
+  try {
+    var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : "";
+    if (action === "readReports") {
+      return readReports();
+    }
+    return makeJson({ ok: false, error: "unknown action" });
+  } catch (err) {
+    return makeJson({ ok: false, error: err.message });
+  }
+}
+
+function readReports() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("판매일보");
+  if (!sheet) return makeJson({ ok: false, error: "판매일보 시트 없음" });
+
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return makeJson({ ok: true, reports: {} });
+
+  // Build name→userId map from 직원목록 sheet
+  var nameToId = {};
+  var userSheet = ss.getSheetByName("직원목록");
+  if (userSheet) {
+    var userData = userSheet.getDataRange().getValues();
+    if (userData.length > 1) {
+      for (var u = 1; u < userData.length; u++) {
+        var uName = String(userData[u][0] || "").trim();
+        // 직원목록 doesn't store ID directly, so use convention from app
+        if (uName) nameToId[uName] = uName;
+      }
+    }
+  }
+
+  var headers = data[0];
+  var colIdx = {};
+  for (var c = 0; c < headers.length; c++) {
+    colIdx[headers[c]] = c;
+  }
+
+  var reports = {};
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var date = String(row[colIdx["날짜"]] || "").trim();
+    if (!date) continue;
+    var empName = String(row[colIdx["직원"]] || "").trim();
+    if (!reports[date]) reports[date] = {};
+    var rk = empName + "_sheet_" + i;
+    reports[date][rk] = {
+      employeeName: empName,
+      clockIn: String(row[colIdx["출근"]] || ""),
+      clockOut: String(row[colIdx["퇴근"]] || ""),
+      ship_sunsal: Number(row[colIdx["출하(순살)"]] || 0),
+      ship_padak: Number(row[colIdx["출하(파닭)"]] || 0),
+      sunsal: Number(row[colIdx["판매(순살)"]] || 0),
+      padak: Number(row[colIdx["판매(파닭)"]] || 0),
+      loss: Number(row[colIdx["로스"]] || 0),
+      chobeol: Number(row[colIdx["초벌"]] || 0),
+      transfer: Number(row[colIdx["이관"]] || 0),
+      cash: Number(row[colIdx["현금"]] || 0),
+      savedAt: new Date(date + "T12:00:00").toISOString()
+    };
+  }
+
+  return makeJson({ ok: true, reports: reports });
+}
+
 function logSync(ss, message) {
   var sheet = gs(ss, "동기화로그");
   var now = new Date();

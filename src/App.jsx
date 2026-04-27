@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { store, syncToSheets, setSheetsUrl, getSheetsUrl } from "./supabase.js";
+import { store, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
 
 var DEFAULT_USERS = [
   { id: "admin1", name: "사장님", role: "admin", pin: "197356", phone: "", hireDate: "", status: "active" },
@@ -565,7 +565,9 @@ function EmpReport(p) {
     }
     u[saveDate][key] = Object.assign({}, formData, { savedAt: new Date().toISOString(), employeeName: user.name, userId: user.id });
     p.setReports(u);
-    store.set("ft-reports", u);
+    var partial = {};
+    partial[saveDate] = u[saveDate];
+    store.merge("ft-reports", partial, {});
     setEditing(false);
     setIsNew(false);
     setShowCal(false);
@@ -1067,6 +1069,54 @@ function AdminHome(p) {
     setSheetsUrl(sheetsUrl);
     setShowSyncSetup(false);
   }
+
+  var rs5 = useState(false), restoring = rs5[0], setRestoring = rs5[1];
+  var rs6 = useState(""), restoreMsg = rs6[0], setRestoreMsg = rs6[1];
+
+  function doRestore() {
+    if (!confirm("Google Sheets에서 일보 데이터를 복원합니다.\n기존 데이터는 유지되고, Sheets 데이터가 병합됩니다.\n계속하시겠습니까?")) return;
+    setRestoring(true); setRestoreMsg("");
+    readFromSheets()
+      .then(function(res) {
+        if (!res.ok || !res.reports) {
+          setRestoreMsg("fail");
+          return;
+        }
+        var sheetReports = res.reports;
+        var current = JSON.parse(JSON.stringify(reports));
+        // Build name→userId map for proper filtering
+        var nameToId = {};
+        (p.users || []).forEach(function(u) { nameToId[u.name] = u.id; });
+        var added = 0;
+        Object.keys(sheetReports).forEach(function(date) {
+          if (!current[date]) current[date] = {};
+          Object.keys(sheetReports[date]).forEach(function(rk) {
+            if (!current[date][rk]) {
+              var entry = sheetReports[date][rk];
+              // Resolve userId from employeeName
+              if (entry.employeeName && nameToId[entry.employeeName]) {
+                entry.userId = nameToId[entry.employeeName];
+              }
+              current[date][rk] = entry;
+              added++;
+            }
+          });
+        });
+        if (added === 0) {
+          setRestoreMsg("none");
+          return;
+        }
+        p.setReports(current);
+        store.set("ft-reports", current);
+        setRestoreMsg("ok:" + added);
+      })
+      .catch(function() { setRestoreMsg("fail"); })
+      .finally(function() {
+        setRestoring(false);
+        setTimeout(function() { setRestoreMsg(""); }, 5000);
+      });
+  }
+
   var now = new Date();
   var thisMonthKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
   var weekAgo = new Date(now.getTime() - 7 * 24 * 3600000);
@@ -1224,6 +1274,16 @@ function AdminHome(p) {
         {syncMsg === "ok" && <p style={{ fontSize: 13, color: "#16a34a", fontWeight: 600, margin: "8px 0 0", textAlign: "center" }}>동기화 완료!</p>}
         {syncMsg === "fail" && <p style={{ fontSize: 13, color: "#e1360a", fontWeight: 600, margin: "8px 0 0", textAlign: "center" }}>동기화 실패. URL을 확인해주세요.</p>}
         {!getSheetsUrl() && !showSyncSetup && <p style={{ fontSize: 12, color: "#a1a1aa", margin: "8px 0 0", textAlign: "center" }}>설정에서 Apps Script URL을 먼저 입력하세요</p>}
+        <div style={{ borderTop: "1px solid #f0f0f3", marginTop: 16, paddingTop: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: "#71717a", margin: "0 0 9px" }}>Sheets에서 일보 복원</p>
+          <button onClick={doRestore} disabled={restoring || !getSheetsUrl()}
+            style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 14, padding: 10, color: "#e1360a", borderColor: "#f5c6c0", opacity: (restoring || !getSheetsUrl()) ? 0.5 : 1 })}>
+            {restoring ? "복원 중..." : "Google Sheets에서 복원"}
+          </button>
+          {restoreMsg.indexOf("ok:") === 0 && <p style={{ fontSize: 13, color: "#16a34a", fontWeight: 600, margin: "8px 0 0", textAlign: "center" }}>{restoreMsg.split(":")[1]}건 복원 완료!</p>}
+          {restoreMsg === "none" && <p style={{ fontSize: 13, color: "#71717a", fontWeight: 600, margin: "8px 0 0", textAlign: "center" }}>새로 복원할 데이터가 없습니다</p>}
+          {restoreMsg === "fail" && <p style={{ fontSize: 13, color: "#e1360a", fontWeight: 600, margin: "8px 0 0", textAlign: "center" }}>복원 실패. Sheets URL 또는 Apps Script 배포를 확인해주세요.</p>}
+        </div>
       </div>
     </div>
   );
@@ -2247,7 +2307,10 @@ function AdminEmployee(p) {
     var u = JSON.parse(JSON.stringify(reports));
     if (u[date] && u[date][rk]) {
       u[date][rk][field] = val;
-      setReports(u); store.set("ft-reports", u);
+      setReports(u);
+      var partial = {};
+      partial[date] = u[date];
+      store.merge("ft-reports", partial, {});
     }
   }
 
@@ -2521,7 +2584,9 @@ function AdminReport(p) {
     var ex = u[selDate][selKey] || {};
     u[selDate][selKey] = Object.assign({}, ex, formData, { savedAt: new Date().toISOString() });
     setReports(u);
-    store.set("ft-reports", u);
+    var partial = {};
+    partial[selDate] = u[selDate];
+    store.merge("ft-reports", partial, {});
     setEditing(false);
     setToast("수정 완료!");
     setTimeout(function() { setToast(""); }, 2000);
@@ -2532,10 +2597,14 @@ function AdminReport(p) {
     var u = JSON.parse(JSON.stringify(reports));
     if (u[selDate] && u[selDate][selKey]) {
       delete u[selDate][selKey];
-      if (Object.keys(u[selDate]).length === 0) delete u[selDate];
+      var dateData = Object.keys(u[selDate]).length === 0 ? null : u[selDate];
+      setReports(u);
+      var partial = {};
+      partial[selDate] = dateData;
+      store.merge("ft-reports", partial, {});
+    } else {
+      setReports(u);
     }
-    setReports(u);
-    store.set("ft-reports", u);
     setSelKey(null);
     setSelDate(null);
     setToast("삭제 완료!");
@@ -2873,6 +2942,7 @@ function App() {
   var r23 = useState({}), prodSettings = r23[0], setProdSettings = r23[1];
   var r24 = useState({}), officeStock = r24[0], setOfficeStock = r24[1];
   var r25 = useState([]), invLog = r25[0], setInvLog = r25[1];
+  var r26 = useState(false), reportsLoaded = r26[0], setReportsLoaded = r26[1];
   var r_bp = useState(window.innerWidth >= 600 ? "unfolded" : "folded");
   var bp = r_bp[0], setBp = r_bp[1];
 
@@ -2901,7 +2971,10 @@ function App() {
         setUsers(migrated);
         if (needsMigration) store.set("ft-users", migrated);
       }
-      setSettings(res[1]); setAttendance(res[2]); setReports(normalizeReportKeys(res[3]));
+      setSettings(res[1]); setAttendance(res[2]);
+      var loadedReports = normalizeReportKeys(res[3]);
+      setReports(loadedReports);
+      if (loadedReports && Object.keys(loadedReports).length > 0) setReportsLoaded(true);
       setInventoryItems(res[4]); setInventoryStock(res[5]); setRequests(res[6]);
       setGasData(res[7]); setSchedules(res[8]);
       setFixedCosts(res[9]); setVarCosts(normalizeDateField(res[10]));
@@ -2936,7 +3009,10 @@ function App() {
         store.get("ft-production", []), store.get("ft-prod-settings", {}),
         store.get("ft-inv-office", {}), store.get("ft-inv-log", [])
       ]).then(function(res) {
-        setSettings(res[0]); setReports(normalizeReportKeys(res[1]));
+        setSettings(res[0]);
+        var reloadedReports = normalizeReportKeys(res[1]);
+        setReports(reloadedReports);
+        if (reloadedReports && Object.keys(reloadedReports).length > 0) setReportsLoaded(true);
         setInventoryItems(res[2]); setInventoryStock(res[3]); setRequests(res[4]);
         setGasData(res[5]); setSchedules(res[6]);
         setFixedCosts(res[7]); setVarCosts(normalizeDateField(res[8]));
@@ -2984,7 +3060,7 @@ function App() {
       {!isAdmin && tab === "salary" && <EmpSalary user={user} reports={reports} settings={settings} />}
       {!isAdmin && tab === "inventory" && <EmpInventory user={user} inventoryItems={inventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} isUnfolded={isUnfolded} />}
       {!isAdmin && tab === "revenue" && <EmpRevenue user={user} reports={reports} settings={settings} />}
-      {isAdmin && tab === "admin-home" && <AdminHome reports={reports} users={users} settings={settings} production={production} gasData={gasData} schedules={schedules} fixedCosts={fixedCosts} varCosts={varCosts} prodSettings={prodSettings} inventoryItems={inventoryItems} inventoryStock={inventoryStock} requests={requests} officeStock={officeStock} invLog={invLog} />}
+      {isAdmin && tab === "admin-home" && <AdminHome reports={reports} setReports={setReports} users={users} settings={settings} production={production} gasData={gasData} schedules={schedules} fixedCosts={fixedCosts} varCosts={varCosts} prodSettings={prodSettings} inventoryItems={inventoryItems} inventoryStock={inventoryStock} requests={requests} officeStock={officeStock} invLog={invLog} />}
       {isAdmin && tab === "admin-report" && <AdminReport reports={reports} setReports={setReports} users={users} settings={settings} isUnfolded={isUnfolded} />}
       {isAdmin && tab === "admin-finance" && <AdminFinance reports={reports} settings={settings} production={production} fixedCosts={fixedCosts} setFixedCosts={setFixedCosts} varCosts={varCosts} setVarCosts={setVarCosts} prodSettings={prodSettings} users={users} invLog={invLog} />}
       {isAdmin && tab === "admin-chicken" && <AdminChicken production={production} setProduction={setProduction} prodSettings={prodSettings} setProdSettings={setProdSettings} reports={reports} isUnfolded={isUnfolded} />}
