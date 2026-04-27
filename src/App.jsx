@@ -15,6 +15,27 @@ function getToday() {
   var d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
+function normalizeDate(s) {
+  if (!s || typeof s !== "string") return s;
+  var p = s.split("-");
+  if (p.length < 3) return s;
+  return p[0] + "-" + p[1].padStart(2, "0") + "-" + p[2].padStart(2, "0");
+}
+function normalizeReportKeys(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  var out = {};
+  Object.entries(obj).forEach(function(e) {
+    out[normalizeDate(e[0])] = e[1];
+  });
+  return out;
+}
+function normalizeDateField(arr) {
+  if (!Array.isArray(arr)) return arr;
+  return arr.map(function(item) {
+    if (item && item.date) return Object.assign({}, item, { date: normalizeDate(item.date) });
+    return item;
+  });
+}
 function formatDate(s) {
   var d = new Date(s + "T00:00:00");
   return (d.getMonth() + 1) + "월 " + d.getDate() + "일 (" + ["일","월","화","수","목","금","토"][d.getDay()] + ")";
@@ -661,6 +682,15 @@ function EmpReport(p) {
     );
   }
 
+  var flatItems = useMemo(function() {
+    if (sortBy !== "date") return null;
+    var g = {};
+    list.forEach(function(r) { var m = getMonthLabel(r.date); if (!g[m]) g[m] = []; g[m].push(r); });
+    var items = [];
+    Object.entries(g).forEach(function(e) { items.push({ type: "header", month: e[0] }); e[1].forEach(function(r) { items.push({ type: "row", data: r }); }); });
+    return items;
+  }, [list, sortBy]);
+
   return (
     <div style={PAGE}>
       <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
@@ -669,7 +699,26 @@ function EmpReport(p) {
       </div>
       {list.length === 0 ? (
         <div style={{ textAlign: "center", padding: 48, color: "#a1a1aa", fontSize: 14 }}>작성된 일보가 없습니다</div>
-      ) : list.slice(0, show).map(function(item, i) {
+      ) : sortBy === "date" && flatItems ? flatItems.slice(0, show).map(function(item, i) {
+        if (item.type === "header") {
+          return <p key={"h" + i} style={{ fontSize: 15, fontWeight: 700, color: "#e1360a", margin: "18px 0 9px", padding: "9px 0", borderBottom: "1px solid #f4f4f5" }}>{item.month}</p>;
+        }
+        var r = item.data;
+        return (
+          <div key={"r" + i} onClick={function() { openReport(r.date, r.rk); }} style={Object.assign({}, CS, { marginBottom: 11, padding: "16px 18px", cursor: "pointer" })}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{formatDate(r.date)}</p>
+                <p style={{ fontSize: 13, color: "#a1a1aa", margin: "4px 0 0" }}>출고 {(Number(r.ship_sunsal) || 0) + (Number(r.ship_padak) || 0)} · 판매 {r.sold} · 로스 {r.loss}</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(r.rev)}</p>
+                <p style={{ fontSize: 12, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(r.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
+              </div>
+            </div>
+          </div>
+        );
+      }) : list.slice(0, show).map(function(item, i) {
         return (
           <div key={i} onClick={function() { openReport(item.date, item.rk); }} style={Object.assign({}, CS, { marginBottom: 11, padding: "16px 18px", cursor: "pointer" })}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -685,7 +734,7 @@ function EmpReport(p) {
           </div>
         );
       })}
-      {show < list.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 13, color: "#71717a" })}>더 보기</button>}
+      {(sortBy === "date" && flatItems ? show < flatItems.length : show < list.length) && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 13, color: "#71717a" })}>더 보기</button>}
       <button onClick={openNew} style={{ position: "fixed", bottom: p.isUnfolded ? 28 : 96, right: p.isUnfolded ? 28 : 20, width: 62, height: 62, borderRadius: 31, background: "#e1360a", color: "#fff", border: "none", fontSize: 30, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(225,54,10,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 90 }}>+</button>
     </div>
   );
@@ -2611,6 +2660,15 @@ function AdminReport(p) {
   }
 
   // 직원 선택 → 일보 리스트
+  var adminFlatItems = useMemo(function() {
+    if (!selEmpId) return [];
+    var g = {};
+    list.forEach(function(r) { var m = getMonthLabel(r.date); if (!g[m]) g[m] = []; g[m].push(r); });
+    var items = [];
+    Object.entries(g).forEach(function(e) { items.push({ type: "header", month: e[0] }); e[1].forEach(function(r) { items.push({ type: "row", data: r }); }); });
+    return items;
+  }, [list, selEmpId]);
+
   if (selEmpId && selEmp) {
     return (
       <div style={PAGE}>
@@ -2633,23 +2691,27 @@ function AdminReport(p) {
         </div>
         {list.length === 0 ? (
           <div style={{ textAlign: "center", padding: 48, color: "#a1a1aa", fontSize: 14 }}>작성된 일보가 없습니다</div>
-        ) : list.slice(0, show).map(function(item, i) {
+        ) : adminFlatItems.slice(0, show).map(function(item, i) {
+          if (item.type === "header") {
+            return <p key={"h" + i} style={{ fontSize: 15, fontWeight: 700, color: "#e1360a", margin: "18px 0 9px", padding: "9px 0", borderBottom: "1px solid #f4f4f5" }}>{item.month}</p>;
+          }
+          var r = item.data;
           return (
-            <div key={i} onClick={function() { openReport(item.date, item.rk); }} style={Object.assign({}, CS, { marginBottom: 10, padding: "16px 18px", cursor: "pointer" })}>
+            <div key={"r" + i} onClick={function() { openReport(r.date, r.rk); }} style={Object.assign({}, CS, { marginBottom: 10, padding: "16px 18px", cursor: "pointer" })}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{formatDate(item.date)}</p>
-                  <p style={{ fontSize: 13, color: "#a1a1aa", margin: "4px 0 0" }}>출고 {(Number(item.ship_sunsal) || 0) + (Number(item.ship_padak) || 0)} · 판매 {item.sold} · 로스 {item.loss}</p>
+                  <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{formatDate(r.date)}</p>
+                  <p style={{ fontSize: 13, color: "#a1a1aa", margin: "4px 0 0" }}>출고 {(Number(r.ship_sunsal) || 0) + (Number(r.ship_padak) || 0)} · 판매 {r.sold} · 로스 {r.loss}</p>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(item.rev)}</p>
-                  <p style={{ fontSize: 12, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(item.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(r.rev)}</p>
+                  <p style={{ fontSize: 12, color: "#a1a1aa", margin: "2px 0 0" }}>{(function() { var d = new Date(r.savedAt); return (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); })()}</p>
                 </div>
               </div>
             </div>
           );
         })}
-        {show < list.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 14, color: "#71717a" })}>더 보기</button>}
+        {show < adminFlatItems.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "100%", textAlign: "center", fontSize: 14, color: "#71717a" })}>더 보기</button>}
         <Toast msg={toast} isUnfolded={p.isUnfolded} />
       </div>
     );
@@ -2808,12 +2870,12 @@ function App() {
         setUsers(migrated);
         if (needsMigration) store.set("ft-users", migrated);
       }
-      setSettings(res[1]); setAttendance(res[2]); setReports(res[3]);
+      setSettings(res[1]); setAttendance(res[2]); setReports(normalizeReportKeys(res[3]));
       setInventoryItems(res[4]); setInventoryStock(res[5]); setRequests(res[6]);
       setGasData(res[7]); setSchedules(res[8]);
-      setFixedCosts(res[9]); setVarCosts(res[10]);
-      setProduction(res[11]); setProdSettings(res[12]);
-      setOfficeStock(res[13]); setInvLog(res[14]);
+      setFixedCosts(res[9]); setVarCosts(normalizeDateField(res[10]));
+      setProduction(normalizeDateField(res[11])); setProdSettings(res[12]);
+      setOfficeStock(res[13]); setInvLog(normalizeDateField(res[14]));
 
       // 세션 복원
       try {
@@ -2843,12 +2905,12 @@ function App() {
         store.get("ft-production", []), store.get("ft-prod-settings", {}),
         store.get("ft-inv-office", {}), store.get("ft-inv-log", [])
       ]).then(function(res) {
-        setSettings(res[0]); setReports(res[1]);
+        setSettings(res[0]); setReports(normalizeReportKeys(res[1]));
         setInventoryItems(res[2]); setInventoryStock(res[3]); setRequests(res[4]);
         setGasData(res[5]); setSchedules(res[6]);
-        setFixedCosts(res[7]); setVarCosts(res[8]);
-        setProduction(res[9]); setProdSettings(res[10]);
-        setOfficeStock(res[11]); setInvLog(res[12]);
+        setFixedCosts(res[7]); setVarCosts(normalizeDateField(res[8]));
+        setProduction(normalizeDateField(res[9])); setProdSettings(res[10]);
+        setOfficeStock(res[11]); setInvLog(normalizeDateField(res[12]));
       });
     }
     document.addEventListener("visibilitychange", reload);
