@@ -627,6 +627,22 @@ function EmpReport(p) {
   var rev = sold * (settings.pricePerUnit || 5000);
   var displayDate = isNew ? newDate : selDate;
 
+  // hooks는 early return 전에 호출해야 함 (React 규칙)
+  var viewMonthKey = viewYear + "-" + String(viewMonth).padStart(2, "0");
+  var filteredList = useMemo(function() {
+    if (viewAll) return list;
+    return list.filter(function(r) { return r.date.substring(0, 7) === viewMonthKey; });
+  }, [list, viewMonthKey, viewAll]);
+
+  var monthSummary = useMemo(function() {
+    var s = 0, rv = 0;
+    filteredList.forEach(function(r) { s += r.sold; rv += r.rev; });
+    return { sold: s, rev: rv, count: filteredList.length };
+  }, [filteredList]);
+
+  function prevMonth() { if (viewMonth === 1) { setViewMonth(12); setViewYear(viewYear - 1); } else { setViewMonth(viewMonth - 1); } setShow(10); }
+  function nextMonth() { if (viewMonth === 12) { setViewMonth(1); setViewYear(viewYear + 1); } else { setViewMonth(viewMonth + 1); } setShow(10); }
+
   if (selKey !== null) {
     var isSaved = !isNew && selDate && reports[selDate] && reports[selDate][selKey] && reports[selDate][selKey].savedAt;
     return (
@@ -724,21 +740,6 @@ function EmpReport(p) {
       </div>
     );
   }
-
-  var viewMonthKey = viewYear + "-" + String(viewMonth).padStart(2, "0");
-  var filteredList = useMemo(function() {
-    if (viewAll) return list;
-    return list.filter(function(r) { return r.date.substring(0, 7) === viewMonthKey; });
-  }, [list, viewMonthKey, viewAll]);
-
-  var monthSummary = useMemo(function() {
-    var sold = 0, rev = 0;
-    filteredList.forEach(function(r) { sold += r.sold; rev += r.rev; });
-    return { sold: sold, rev: rev, count: filteredList.length };
-  }, [filteredList]);
-
-  function prevMonth() { if (viewMonth === 1) { setViewMonth(12); setViewYear(viewYear - 1); } else { setViewMonth(viewMonth - 1); } setShow(10); }
-  function nextMonth() { if (viewMonth === 12) { setViewMonth(1); setViewYear(viewYear + 1); } else { setViewMonth(viewMonth + 1); } setShow(10); }
 
   return (
     <div style={PAGE}>
@@ -2694,6 +2695,23 @@ function AdminReport(p) {
     return m;
   }, [reports, employees, settings]);
 
+  // hooks는 early return 전에 호출해야 함 (React 규칙)
+  var arMonthKey = arViewYear + "-" + String(arViewMonth).padStart(2, "0");
+  var adminFiltered = useMemo(function() {
+    if (!selEmpId) return [];
+    if (arViewAll) return list;
+    return list.filter(function(r) { return r.date.substring(0, 7) === arMonthKey; });
+  }, [list, selEmpId, arMonthKey, arViewAll]);
+
+  var adminMonthSummary = useMemo(function() {
+    var s = 0, rv = 0;
+    adminFiltered.forEach(function(r) { s += r.sold; rv += r.rev; });
+    return { sold: s, rev: rv, count: adminFiltered.length };
+  }, [adminFiltered]);
+
+  function arPrevMonth() { if (arViewMonth === 1) { setArViewMonth(12); setArViewYear(arViewYear - 1); } else { setArViewMonth(arViewMonth - 1); } setShow(10); }
+  function arNextMonth() { if (arViewMonth === 12) { setArViewMonth(1); setArViewYear(arViewYear + 1); } else { setArViewMonth(arViewMonth + 1); } setShow(10); }
+
   // 상세 보기/수정 화면
   if (selKey !== null && selDate !== null) {
     var shipped = (Number(formData.ship_sunsal) || 0) + (Number(formData.ship_padak) || 0);
@@ -2788,22 +2806,6 @@ function AdminReport(p) {
     );
   }
 
-  // 직원 선택 → 일보 리스트
-  var arMonthKey = arViewYear + "-" + String(arViewMonth).padStart(2, "0");
-  var adminFiltered = useMemo(function() {
-    if (!selEmpId) return [];
-    if (arViewAll) return list;
-    return list.filter(function(r) { return r.date.substring(0, 7) === arMonthKey; });
-  }, [list, selEmpId, arMonthKey, arViewAll]);
-
-  var adminMonthSummary = useMemo(function() {
-    var sold = 0, rev = 0;
-    adminFiltered.forEach(function(r) { sold += r.sold; rev += r.rev; });
-    return { sold: sold, rev: rev, count: adminFiltered.length };
-  }, [adminFiltered]);
-
-  function arPrevMonth() { if (arViewMonth === 1) { setArViewMonth(12); setArViewYear(arViewYear - 1); } else { setArViewMonth(arViewMonth - 1); } setShow(10); }
-  function arNextMonth() { if (arViewMonth === 12) { setArViewMonth(1); setArViewYear(arViewYear + 1); } else { setArViewMonth(arViewMonth + 1); } setShow(10); }
 
   if (selEmpId && selEmp) {
     return (
