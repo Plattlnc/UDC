@@ -61,6 +61,101 @@ export const store = {
   }
 };
 
+// reports 전용 CRUD (개별 row 저장)
+export var reportStore = {
+  getAll: function() {
+    return supabase
+      .from('reports')
+      .select('*')
+      .order('date', { ascending: false })
+      .then(function(res) {
+        if (res.error) {
+          console.error('[reportStore.getAll] 실패:', res.error.message);
+          return null;
+        }
+        return res.data || [];
+      })
+      .catch(function(e) { console.error('[reportStore.getAll] 네트워크 오류:', e); return null; });
+  },
+  upsert: function(report) {
+    return supabase
+      .from('reports')
+      .upsert(report)
+      .then(function(res) {
+        if (res.error) {
+          console.error('[reportStore.upsert] 실패:', res.error.message);
+          return false;
+        }
+        return true;
+      })
+      .catch(function(e) { console.error('[reportStore.upsert] 네트워크 오류:', e); return false; });
+  },
+  remove: function(id) {
+    return supabase
+      .from('reports')
+      .delete()
+      .eq('id', id)
+      .then(function(res) {
+        if (res.error) {
+          console.error('[reportStore.delete] 실패:', res.error.message);
+          return false;
+        }
+        return true;
+      })
+      .catch(function(e) { console.error('[reportStore.delete] 네트워크 오류:', e); return false; });
+  },
+  // rows → 기존 reports 객체 형태 변환
+  toReportsObj: function(rows) {
+    var obj = {};
+    rows.forEach(function(r) {
+      var d = r.date;
+      if (!obj[d]) obj[d] = {};
+      obj[d][r.id] = {
+        userId: r.user_id,
+        employeeName: r.employee_name || "",
+        clockIn: r.clock_in || "",
+        clockOut: r.clock_out || "",
+        ship_sunsal: r.ship_sunsal || 0,
+        ship_padak: r.ship_padak || 0,
+        sunsal: r.sunsal || 0,
+        padak: r.padak || 0,
+        loss: r.loss || 0,
+        chobeol: r.chobeol || 0,
+        transfer: r.transfer || 0,
+        cash: r.cash || 0,
+        memo: r.memo || "",
+        paid: r.paid || false,
+        payOverride: r.pay_override !== null ? r.pay_override : undefined,
+        savedAt: r.saved_at || r.created_at || ""
+      };
+    });
+    return obj;
+  },
+  // 기존 형태 → row 변환
+  toRow: function(id, date, data) {
+    return {
+      id: id,
+      date: date,
+      user_id: data.userId || "",
+      employee_name: data.employeeName || "",
+      clock_in: data.clockIn || "",
+      clock_out: data.clockOut || "",
+      ship_sunsal: Number(data.ship_sunsal) || 0,
+      ship_padak: Number(data.ship_padak) || 0,
+      sunsal: Number(data.sunsal) || 0,
+      padak: Number(data.padak) || 0,
+      loss: Number(data.loss) || 0,
+      chobeol: Number(data.chobeol) || 0,
+      transfer: Number(data.transfer) || 0,
+      cash: Number(data.cash) || 0,
+      memo: data.memo || "",
+      paid: data.paid || false,
+      pay_override: data.payOverride !== undefined ? data.payOverride : null,
+      saved_at: data.savedAt || new Date().toISOString()
+    };
+  }
+};
+
 // Google Sheets 동기화
 export function getSheetsUrl() {
   return localStorage.getItem("ft-sheets-url") || "";

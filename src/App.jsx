@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { store, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
+import { store, reportStore, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
 
 var DEFAULT_USERS = [
   { id: "admin1", name: "사장님", role: "admin", pin: "197356", phone: "", hireDate: "", status: "active" },
@@ -563,11 +563,10 @@ function EmpReport(p) {
     } else {
       key = selKey;
     }
-    u[saveDate][key] = Object.assign({}, formData, { savedAt: new Date().toISOString(), employeeName: user.name, userId: user.id });
+    var reportData = Object.assign({}, formData, { savedAt: new Date().toISOString(), employeeName: user.name, userId: user.id });
+    u[saveDate][key] = reportData;
     p.setReports(u);
-    var partial = {};
-    partial[saveDate] = u[saveDate];
-    store.merge("ft-reports", partial, {});
+    reportStore.upsert(reportStore.toRow(key, saveDate, reportData));
     setEditing(false);
     setIsNew(false);
     setShowCal(false);
@@ -1107,7 +1106,18 @@ function AdminHome(p) {
           return;
         }
         p.setReports(current);
-        store.set("ft-reports", current);
+        // 새 reports 테이블에 복원된 항목 저장
+        var rows = [];
+        Object.keys(sheetReports).forEach(function(date) {
+          Object.keys(sheetReports[date]).forEach(function(rk) {
+            if (current[date] && current[date][rk]) {
+              rows.push(reportStore.toRow(rk, date, current[date][rk]));
+            }
+          });
+        });
+        if (rows.length > 0) {
+          rows.forEach(function(row) { reportStore.upsert(row); });
+        }
         setRestoreMsg("ok:" + added);
       })
       .catch(function() { setRestoreMsg("fail"); })
@@ -2308,9 +2318,7 @@ function AdminEmployee(p) {
     if (u[date] && u[date][rk]) {
       u[date][rk][field] = val;
       setReports(u);
-      var partial = {};
-      partial[date] = u[date];
-      store.merge("ft-reports", partial, {});
+      reportStore.upsert(reportStore.toRow(rk, date, u[date][rk]));
     }
   }
 
@@ -2582,11 +2590,10 @@ function AdminReport(p) {
     var u = JSON.parse(JSON.stringify(reports));
     if (!u[selDate]) u[selDate] = {};
     var ex = u[selDate][selKey] || {};
-    u[selDate][selKey] = Object.assign({}, ex, formData, { savedAt: new Date().toISOString() });
+    var reportData = Object.assign({}, ex, formData, { savedAt: new Date().toISOString() });
+    u[selDate][selKey] = reportData;
     setReports(u);
-    var partial = {};
-    partial[selDate] = u[selDate];
-    store.merge("ft-reports", partial, {});
+    reportStore.upsert(reportStore.toRow(selKey, selDate, reportData));
     setEditing(false);
     setToast("수정 완료!");
     setTimeout(function() { setToast(""); }, 2000);
@@ -2597,11 +2604,9 @@ function AdminReport(p) {
     var u = JSON.parse(JSON.stringify(reports));
     if (u[selDate] && u[selDate][selKey]) {
       delete u[selDate][selKey];
-      var dateData = Object.keys(u[selDate]).length === 0 ? null : u[selDate];
+      if (Object.keys(u[selDate]).length === 0) delete u[selDate];
       setReports(u);
-      var partial = {};
-      partial[selDate] = dateData;
-      store.merge("ft-reports", partial, {});
+      reportStore.remove(selKey);
     } else {
       setReports(u);
     }
@@ -2955,12 +2960,13 @@ function App() {
   useEffect(function() {
     Promise.all([
       store.get("ft-users", null), store.get("ft-settings", DEFAULT_SETTINGS),
-      store.get("ft-attendance", {}), store.get("ft-reports", {}),
+      store.get("ft-attendance", {}), reportStore.getAll(),
       store.get("ft-inv-items", []), store.get("ft-inv-stock", {}), store.get("ft-inv-requests", []),
       store.get("ft-gas", {}), store.get("ft-schedules", {}),
       store.get("ft-fixed-costs", []), store.get("ft-variable-costs", []),
       store.get("ft-production", []), store.get("ft-prod-settings", {}),
-      store.get("ft-inv-office", {}), store.get("ft-inv-log", [])
+      store.get("ft-inv-office", {}), store.get("ft-inv-log", []),
+      store.get("ft-reports", {})
     ]).then(function(res) {
       if (res[0] && Array.isArray(res[0]) && res[0].length > 0) {
         var needsMigration = false;
@@ -2972,7 +2978,15 @@ function App() {
         if (needsMigration) store.set("ft-users", migrated);
       }
       setSettings(res[1]); setAttendance(res[2]);
-      var loadedReports = normalizeReportKeys(res[3]);
+      // reports: 새 테이블 우선, fallback으로 기존 ft-reports
+      var reportRows = res[3];
+      var legacyReports = res[15] || {};
+      var loadedReports;
+      if (reportRows && reportRows.length > 0) {
+        loadedReports = reportStore.toReportsObj(reportRows);
+      } else {
+        loadedReports = normalizeReportKeys(legacyReports);
+      }
       setReports(loadedReports);
       if (loadedReports && Object.keys(loadedReports).length > 0) setReportsLoaded(true);
       setInventoryItems(res[4]); setInventoryStock(res[5]); setRequests(res[6]);
@@ -3002,7 +3016,7 @@ function App() {
       if (document.visibilityState !== "visible") return;
       Promise.all([
         store.get("ft-settings", DEFAULT_SETTINGS),
-        store.get("ft-reports", {}),
+        reportStore.getAll(),
         store.get("ft-inv-items", []), store.get("ft-inv-stock", {}), store.get("ft-inv-requests", []),
         store.get("ft-gas", {}), store.get("ft-schedules", {}),
         store.get("ft-fixed-costs", []), store.get("ft-variable-costs", []),
@@ -3010,9 +3024,12 @@ function App() {
         store.get("ft-inv-office", {}), store.get("ft-inv-log", [])
       ]).then(function(res) {
         setSettings(res[0]);
-        var reloadedReports = normalizeReportKeys(res[1]);
-        setReports(reloadedReports);
-        if (reloadedReports && Object.keys(reloadedReports).length > 0) setReportsLoaded(true);
+        var reportRows = res[1];
+        if (reportRows && reportRows.length > 0) {
+          var reloadedReports = reportStore.toReportsObj(reportRows);
+          setReports(reloadedReports);
+          if (Object.keys(reloadedReports).length > 0) setReportsLoaded(true);
+        }
         setInventoryItems(res[2]); setInventoryStock(res[3]); setRequests(res[4]);
         setGasData(res[5]); setSchedules(res[6]);
         setFixedCosts(res[7]); setVarCosts(normalizeDateField(res[8]));
