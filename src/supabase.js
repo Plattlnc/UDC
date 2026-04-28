@@ -107,32 +107,39 @@ export var reportStore = {
   // rows → 기존 reports 객체 형태 변환
   toReportsObj: function(rows) {
     var obj = {};
+    if (!Array.isArray(rows)) return obj;
     rows.forEach(function(r) {
-      var d = r.date;
-      if (!obj[d]) obj[d] = {};
-      obj[d][r.id] = {
-        userId: r.user_id,
-        employeeName: r.employee_name || "",
-        clockIn: r.clock_in || "",
-        clockOut: r.clock_out || "",
-        ship_sunsal: r.ship_sunsal || 0,
-        ship_padak: r.ship_padak || 0,
-        sunsal: r.sunsal || 0,
-        padak: r.padak || 0,
-        loss: r.loss || 0,
-        chobeol: r.chobeol || 0,
-        transfer: r.transfer || 0,
-        cash: r.cash || 0,
-        memo: r.memo || "",
-        paid: r.paid || false,
-        payOverride: r.pay_override !== null ? r.pay_override : undefined,
-        savedAt: r.saved_at || r.created_at || ""
-      };
+      try {
+        var d = r.date;
+        if (!d || !r.id) return;
+        if (!obj[d]) obj[d] = {};
+        obj[d][r.id] = {
+          userId: r.user_id || "",
+          employeeName: r.employee_name || "",
+          clockIn: r.clock_in || "",
+          clockOut: r.clock_out || "",
+          ship_sunsal: Number(r.ship_sunsal) || 0,
+          ship_padak: Number(r.ship_padak) || 0,
+          sunsal: Number(r.sunsal) || 0,
+          padak: Number(r.padak) || 0,
+          loss: Number(r.loss) || 0,
+          chobeol: Number(r.chobeol) || 0,
+          transfer: Number(r.transfer) || 0,
+          cash: Number(r.cash) || 0,
+          memo: r.memo || "",
+          paid: !!r.paid,
+          payOverride: r.pay_override !== null && r.pay_override !== undefined ? Number(r.pay_override) : undefined,
+          savedAt: r.saved_at || r.created_at || new Date().toISOString()
+        };
+      } catch(e) {
+        console.error('[toReportsObj] row 변환 오류:', r, e);
+      }
     });
     return obj;
   },
   // 기존 형태 → row 변환
   toRow: function(id, date, data) {
+    if (!data || typeof data !== "object") data = {};
     return {
       id: id,
       date: date,
@@ -140,17 +147,17 @@ export var reportStore = {
       employee_name: data.employeeName || "",
       clock_in: data.clockIn || "",
       clock_out: data.clockOut || "",
-      ship_sunsal: Number(data.ship_sunsal) || 0,
-      ship_padak: Number(data.ship_padak) || 0,
-      sunsal: Number(data.sunsal) || 0,
-      padak: Number(data.padak) || 0,
-      loss: Number(data.loss) || 0,
-      chobeol: Number(data.chobeol) || 0,
-      transfer: Number(data.transfer) || 0,
-      cash: Number(data.cash) || 0,
+      ship_sunsal: parseInt(data.ship_sunsal, 10) || 0,
+      ship_padak: parseInt(data.ship_padak, 10) || 0,
+      sunsal: parseInt(data.sunsal, 10) || 0,
+      padak: parseInt(data.padak, 10) || 0,
+      loss: parseInt(data.loss, 10) || 0,
+      chobeol: parseInt(data.chobeol, 10) || 0,
+      transfer: parseInt(data.transfer, 10) || 0,
+      cash: parseInt(data.cash, 10) || 0,
       memo: data.memo || "",
-      paid: data.paid || false,
-      pay_override: data.payOverride !== undefined ? data.payOverride : null,
+      paid: !!data.paid,
+      pay_override: data.payOverride !== undefined && data.payOverride !== null ? Number(data.payOverride) : null,
       saved_at: data.savedAt || new Date().toISOString()
     };
   }

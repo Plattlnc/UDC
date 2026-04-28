@@ -1,5 +1,33 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, Component } from "react";
 import { store, reportStore, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
+
+// Error Boundary: 백지 화면 방지
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error: error };
+  }
+  componentDidCatch(error, info) {
+    console.error("[ErrorBoundary]", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      var self = this;
+      return React.createElement("div", { style: { padding: 32, textAlign: "center" } },
+        React.createElement("p", { style: { fontSize: 18, fontWeight: 700, color: "#e1360a", margin: "0 0 12px" } }, "오류가 발생했습니다"),
+        React.createElement("p", { style: { fontSize: 13, color: "#71717a", margin: "0 0 16px", wordBreak: "break-all" } }, String(this.state.error)),
+        React.createElement("button", {
+          onClick: function() { self.setState({ hasError: false, error: null }); },
+          style: { padding: "10px 24px", fontSize: 14, fontWeight: 600, border: "1px solid #e1360a", borderRadius: 8, background: "#fff", color: "#e1360a", cursor: "pointer" }
+        }, "다시 시도")
+      );
+    }
+    return this.props.children;
+  }
+}
 
 var DEFAULT_USERS = [
   { id: "admin1", name: "사장님", role: "admin", pin: "197356", phone: "", hireDate: "", status: "active" },
@@ -37,7 +65,9 @@ function normalizeDateField(arr) {
   });
 }
 function formatDate(s) {
+  if (!s) return "-";
   var d = new Date(s + "T00:00:00");
+  if (isNaN(d.getTime())) return String(s);
   return (d.getMonth() + 1) + "월 " + d.getDate() + "일 (" + ["일","월","화","수","목","금","토"][d.getDay()] + ")";
 }
 function formatTime(iso) {
@@ -46,7 +76,8 @@ function formatTime(iso) {
   return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
 }
 function formatCurrency(n) {
-  return n === 0 ? "0원" : n.toLocaleString("ko-KR") + "원";
+  if (n === null || n === undefined || isNaN(n)) return "0원";
+  return n === 0 ? "0원" : Number(n).toLocaleString("ko-KR") + "원";
 }
 function calcWorkTime(ci, co) {
   if (!ci || !co) return null;
@@ -554,26 +585,33 @@ function EmpReport(p) {
   }
 
   function save() {
-    var u = JSON.parse(JSON.stringify(reports));
-    var saveDate = isNew ? newDate : selDate;
-    if (!u[saveDate]) u[saveDate] = {};
-    var key;
-    if (isNew) {
-      key = user.id + "_" + Date.now();
-    } else {
-      key = selKey;
+    try {
+      var u = JSON.parse(JSON.stringify(reports));
+      var saveDate = isNew ? newDate : selDate;
+      if (!saveDate) { setToast("날짜를 선택하세요"); setTimeout(function() { setToast(""); }, 2000); return; }
+      if (!u[saveDate]) u[saveDate] = {};
+      var key;
+      if (isNew) {
+        key = user.id + "_" + Date.now();
+      } else {
+        key = selKey;
+      }
+      var reportData = Object.assign({}, formData, { savedAt: new Date().toISOString(), employeeName: user.name, userId: user.id });
+      u[saveDate][key] = reportData;
+      p.setReports(u);
+      reportStore.upsert(reportStore.toRow(key, saveDate, reportData)).catch(function(e) { console.error("[save] DB 저장 실패:", e); });
+      setEditing(false);
+      setIsNew(false);
+      setShowCal(false);
+      setSelDate(saveDate);
+      setSelKey(key);
+      setToast("저장 완료!");
+      setTimeout(function() { setToast(""); }, 2000);
+    } catch(e) {
+      console.error("[EmpReport.save] 오류:", e);
+      setToast("저장 실패: " + e.message);
+      setTimeout(function() { setToast(""); }, 3000);
     }
-    var reportData = Object.assign({}, formData, { savedAt: new Date().toISOString(), employeeName: user.name, userId: user.id });
-    u[saveDate][key] = reportData;
-    p.setReports(u);
-    reportStore.upsert(reportStore.toRow(key, saveDate, reportData));
-    setEditing(false);
-    setIsNew(false);
-    setShowCal(false);
-    setSelDate(saveDate);
-    setSelKey(key);
-    setToast("저장 완료!");
-    setTimeout(function() { setToast(""); }, 2000);
   }
 
   function goBack() {
@@ -2587,16 +2625,22 @@ function AdminReport(p) {
   }
 
   function save() {
-    var u = JSON.parse(JSON.stringify(reports));
-    if (!u[selDate]) u[selDate] = {};
-    var ex = u[selDate][selKey] || {};
-    var reportData = Object.assign({}, ex, formData, { savedAt: new Date().toISOString() });
-    u[selDate][selKey] = reportData;
-    setReports(u);
-    reportStore.upsert(reportStore.toRow(selKey, selDate, reportData));
-    setEditing(false);
-    setToast("수정 완료!");
-    setTimeout(function() { setToast(""); }, 2000);
+    try {
+      var u = JSON.parse(JSON.stringify(reports));
+      if (!u[selDate]) u[selDate] = {};
+      var ex = u[selDate][selKey] || {};
+      var reportData = Object.assign({}, ex, formData, { savedAt: new Date().toISOString() });
+      u[selDate][selKey] = reportData;
+      setReports(u);
+      reportStore.upsert(reportStore.toRow(selKey, selDate, reportData)).catch(function(e) { console.error("[AdminReport.save] DB 저장 실패:", e); });
+      setEditing(false);
+      setToast("수정 완료!");
+      setTimeout(function() { setToast(""); }, 2000);
+    } catch(e) {
+      console.error("[AdminReport.save] 오류:", e);
+      setToast("저장 실패: " + e.message);
+      setTimeout(function() { setToast(""); }, 3000);
+    }
   }
 
   function deleteReport() {
@@ -2982,11 +3026,17 @@ function App() {
       var reportRows = res[3];
       var legacyReports = res[15] || {};
       var loadedReports;
-      if (reportRows && reportRows.length > 0) {
-        loadedReports = reportStore.toReportsObj(reportRows);
-      } else {
+      try {
+        if (reportRows && Array.isArray(reportRows) && reportRows.length > 0) {
+          loadedReports = reportStore.toReportsObj(reportRows);
+        } else {
+          loadedReports = normalizeReportKeys(legacyReports);
+        }
+      } catch(e) {
+        console.error('[App] reports 변환 오류:', e);
         loadedReports = normalizeReportKeys(legacyReports);
       }
+      if (!loadedReports || typeof loadedReports !== "object") loadedReports = {};
       setReports(loadedReports);
       if (loadedReports && Object.keys(loadedReports).length > 0) setReportsLoaded(true);
       setInventoryItems(res[4]); setInventoryStock(res[5]); setRequests(res[6]);
@@ -3071,7 +3121,7 @@ function App() {
 
   // 공통 페이지 컨텐츠
   var pageContent = (
-    <div>
+    <ErrorBoundary>
       {!isAdmin && tab === "vehicle" && <EmpVehicle user={user} reports={reports} settings={settings} gasData={gasData} setGasData={setGasData} schedules={schedules} setSchedules={setSchedules} />}
       {!isAdmin && tab === "report" && <EmpReport user={user} reports={reports} setReports={setReports} settings={settings} isUnfolded={isUnfolded} />}
       {!isAdmin && tab === "salary" && <EmpSalary user={user} reports={reports} settings={settings} />}
@@ -3083,7 +3133,7 @@ function App() {
       {isAdmin && tab === "admin-chicken" && <AdminChicken production={production} setProduction={setProduction} prodSettings={prodSettings} setProdSettings={setProdSettings} reports={reports} isUnfolded={isUnfolded} />}
       {isAdmin && tab === "admin-inv" && <AdminInventory inventoryItems={inventoryItems} setInventoryItems={setInventoryItems} inventoryStock={inventoryStock} setInventoryStock={setInventoryStock} requests={requests} setRequests={setRequests} users={users} officeStock={officeStock} setOfficeStock={setOfficeStock} invLog={invLog} setInvLog={setInvLog} varCosts={varCosts} setVarCosts={setVarCosts} isUnfolded={isUnfolded} />}
       {isAdmin && tab === "admin-emp" && <AdminEmployee users={users} setUsers={setUsers} settings={settings} setSettings={setSettings} schedules={schedules} setSchedules={setSchedules} reports={reports} setReports={setReports} isUnfolded={isUnfolded} />}
-    </div>
+    </ErrorBoundary>
   );
 
   // ── 레이아웃 렌더 ──────────────────────────────────────────────────────────
