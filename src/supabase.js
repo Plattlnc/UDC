@@ -84,9 +84,17 @@ function _writePending(arr) {
     if (typeof localStorage === "undefined") return;
     if (!Array.isArray(arr) || arr.length === 0) {
       localStorage.removeItem(PENDING_KEY);
-      return;
+    } else {
+      localStorage.setItem(PENDING_KEY, JSON.stringify(arr));
     }
-    localStorage.setItem(PENDING_KEY, JSON.stringify(arr));
+    // App.jsx에 큐 길이 변동을 알림 (영구 배지 갱신용)
+    if (typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(new CustomEvent('pending-reports-changed', {
+          detail: { count: Array.isArray(arr) ? arr.length : 0 }
+        }));
+      } catch(_) {}
+    }
   } catch(e) {
     console.error('[pendingReports] write 실패:', e);
   }
@@ -202,37 +210,53 @@ export var reportStore = {
       })
       .catch(function(e) { console.error('[reportStore.getAll] 네트워크 오류:', e); return null; });
   },
-  // 단일 시도. 호출 측은 반환 Promise<boolean>을 반드시 await/then 으로 확인할 것.
-  // (재시도 책임은 응급 큐 pendingReportsQueue가 담당 — 중복 메커니즘 회피)
+  // transient 네트워크 보완용 1회 재시도 + 응급 큐와 공존.
+  // 영구 실패 (스키마/RLS 등)는 1회 재시도해도 어차피 fail → 호출부가 큐에 적재.
   upsert: function(report) {
-    return supabase
-      .from('reports')
-      .upsert(report)
-      .then(function(res) {
-        if (res.error) {
-          console.error('[reportStore.upsert] 실패:', res.error.message);
-          return false;
-        }
-        return true;
-      })
-      .catch(function(e) { console.error('[reportStore.upsert] 네트워크 오류:', e); return false; });
-  },
-  // 실패 사유 메시지까지 반환 (UI 토스트용). 단일 시도.
-  upsertWithError: function(report) {
-    return supabase
-      .from('reports')
-      .upsert(report)
-      .then(function(res) {
-        if (res.error) {
-          console.error('[reportStore.upsert] 실패:', res.error.message);
-          return { ok: false, message: res.error.message || "DB 오류" };
-        }
-        return { ok: true };
-      })
-      .catch(function(e) {
-        console.error('[reportStore.upsert] 네트워크 오류:', e);
-        return { ok: false, message: (e && e.message) ? e.message : "네트워크 오류" };
+    function attempt() {
+      return supabase
+        .from('reports')
+        .upsert(report)
+        .then(function(res) {
+          if (res.error) return { ok: false, error: res.error };
+          return { ok: true };
+        })
+        .catch(function(e) { return { ok: false, error: e }; });
+    }
+    return attempt().then(function(r1) {
+      if (r1.ok) return true;
+      console.error('[reportStore.upsert] 1차 실패:', r1.error && r1.error.message ? r1.error.message : r1.error);
+      return attempt().then(function(r2) {
+        if (r2.ok) return true;
+        console.error('[reportStore.upsert] 재시도 실패:', r2.error && r2.error.message ? r2.error.message : r2.error);
+        return false;
       });
+    });
+  },
+  // 실패 사유 메시지까지 반환 (UI 토스트용). 1회 재시도 포함.
+  upsertWithError: function(report) {
+    function attempt() {
+      return supabase
+        .from('reports')
+        .upsert(report)
+        .then(function(res) {
+          if (res.error) return { ok: false, error: res.error };
+          return { ok: true };
+        })
+        .catch(function(e) { return { ok: false, error: e }; });
+    }
+    return attempt().then(function(r1) {
+      if (r1.ok) return { ok: true };
+      console.error('[reportStore.upsert] 1차 실패:', r1.error && r1.error.message ? r1.error.message : r1.error);
+      return attempt().then(function(r2) {
+        if (r2.ok) return { ok: true };
+        console.error('[reportStore.upsert] 재시도 실패:', r2.error && r2.error.message ? r2.error.message : r2.error);
+        var msg = (r2.error && r2.error.message) ? r2.error.message
+                : (r1.error && r1.error.message) ? r1.error.message
+                : "네트워크 오류";
+        return { ok: false, message: msg };
+      });
+    });
   },
   remove: function(id) {
     return supabase

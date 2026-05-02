@@ -3181,6 +3181,25 @@ function App() {
   // 응급 큐 flush — 부팅 시 1회 + online 이벤트마다
   // 데이터 영구 손실 방지 안전망. 큐가 비워져도 "오프라인 저장 N건 동기화 완료" 토스트로 사용자에게 안내.
   var r_pendingToast = useState(""), pendingToast = r_pendingToast[0], setPendingToast = r_pendingToast[1];
+  // 영구 배지: 큐에 row가 있는 동안 항상 표시 (사용자/관리자 모두 인지)
+  var r_pendingCount = useState(0), pendingCount = r_pendingCount[0], setPendingCount = r_pendingCount[1];
+
+  // supabase.js의 큐 변동 이벤트(`pending-reports-changed`) 구독 → 배지 갱신
+  useEffect(function() {
+    function syncCount() {
+      try { setPendingCount(getPendingReportsCount()); } catch(_) {}
+    }
+    syncCount();
+    function onChanged(e) {
+      var c = (e && e.detail && typeof e.detail.count === "number") ? e.detail.count : getPendingReportsCount();
+      setPendingCount(c);
+    }
+    if (typeof window !== "undefined") window.addEventListener("pending-reports-changed", onChanged);
+    return function() {
+      if (typeof window !== "undefined") window.removeEventListener("pending-reports-changed", onChanged);
+    };
+  }, []);
+
   useEffect(function() {
     function tryFlush(reason) {
       var before = getPendingReportsCount();
@@ -3266,6 +3285,19 @@ function App() {
       : { minHeight: "100vh", background: "#fafafa", maxWidth: 540, margin: "0 auto" }
     }>
       <Header title={titles[tab]} userName={user.name} onLogout={logout} />
+      {/* 응급 큐 영구 배지 — 큐에 row가 있는 동안 항상 표시 */}
+      {pendingCount > 0 && (
+        <div style={{
+          position: "sticky", top: 61, zIndex: 90,
+          marginLeft: isUnfolded ? 280 : 0,
+          background: "#fef3c7", color: "#92400e",
+          padding: "8px 16px", fontSize: 13, fontWeight: 600,
+          textAlign: "center",
+          borderBottom: "1px solid #fde68a",
+        }}>
+          ⏳ 오프라인 저장 {pendingCount}건 대기 중 — 네트워크 복귀 시 자동 전송
+        </div>
+      )}
       {isUnfolded && <SideNav tabs={tabs} active={tab} onSelect={setTab} />}
       <div style={isUnfolded ? { marginLeft: 280, minHeight: "calc(100vh - 61px)", overflowY: "auto" } : {}}>
         {pageContent}
