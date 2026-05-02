@@ -61,6 +61,53 @@ export const store = {
   }
 };
 
+// In-flight 추적: visibility reload race 가드 (App.jsx와 공유)
+// upsert/remove 진행 중인 key를 보존해서, reload 결과가 stale이어도 덮어쓰지 못하게 한다.
+var _inflightUpserts = new Map();   // key -> { date, data }
+var _inflightDeletes = new Set();   // key (방금 삭제 요청 중)
+
+export function markInflightUpsert(key, date, data) {
+  if (!key) return;
+  _inflightUpserts.set(key, { date: date, data: data });
+}
+export function clearInflightUpsert(key) {
+  if (!key) return;
+  _inflightUpserts.delete(key);
+}
+export function markInflightDelete(key) {
+  if (!key) return;
+  _inflightDeletes.add(key);
+}
+export function clearInflightDelete(key) {
+  if (!key) return;
+  _inflightDeletes.delete(key);
+}
+
+// reportStore.toReportsObj 결과에 in-flight 변경분을 덮어씌운다.
+// 호출 측 (visibility reload)에서 setReports 직전에 사용.
+export function applyInflightOverlay(reportsObj) {
+  var out = reportsObj && typeof reportsObj === "object" ? Object.assign({}, reportsObj) : {};
+  // upsert 보존
+  _inflightUpserts.forEach(function(entry, key) {
+    if (!entry || !entry.date) return;
+    if (!out[entry.date]) out[entry.date] = {};
+    else out[entry.date] = Object.assign({}, out[entry.date]);
+    // 서버보다 in-flight를 신뢰 (방금 사용자가 저장 시도)
+    out[entry.date][key] = entry.data;
+  });
+  // delete 보존: 방금 삭제 요청한 key는 reload 결과에서도 제거
+  _inflightDeletes.forEach(function(key) {
+    Object.keys(out).forEach(function(date) {
+      if (out[date] && out[date][key]) {
+        out[date] = Object.assign({}, out[date]);
+        delete out[date][key];
+        if (Object.keys(out[date]).length === 0) delete out[date];
+      }
+    });
+  });
+  return out;
+}
+
 // reports 전용 CRUD (개별 row 저장)
 export var reportStore = {
   getAll: function() {
@@ -77,18 +124,51 @@ export var reportStore = {
       })
       .catch(function(e) { console.error('[reportStore.getAll] 네트워크 오류:', e); return null; });
   },
+  // 1회 재시도 포함. 호출 측은 반환 Promise<boolean>을 반드시 await/then 으로 확인할 것.
   upsert: function(report) {
-    return supabase
-      .from('reports')
-      .upsert(report)
-      .then(function(res) {
-        if (res.error) {
-          console.error('[reportStore.upsert] 실패:', res.error.message);
-          return false;
-        }
-        return true;
-      })
-      .catch(function(e) { console.error('[reportStore.upsert] 네트워크 오류:', e); return false; });
+    function attempt() {
+      return supabase
+        .from('reports')
+        .upsert(report)
+        .then(function(res) {
+          if (res.error) {
+            return { ok: false, error: res.error };
+          }
+          return { ok: true };
+        })
+        .catch(function(e) { return { ok: false, error: e }; });
+    }
+    return attempt().then(function(r1) {
+      if (r1.ok) return true;
+      console.error('[reportStore.upsert] 1차 실패:', r1.error && r1.error.message ? r1.error.message : r1.error);
+      return attempt().then(function(r2) {
+        if (r2.ok) return true;
+        console.error('[reportStore.upsert] 재시도 실패:', r2.error && r2.error.message ? r2.error.message : r2.error);
+        return false;
+      });
+    });
+  },
+  // 가장 최근 upsert 실패 사유 메시지 헬퍼 (UI 토스트용)
+  upsertWithError: function(report) {
+    function attempt() {
+      return supabase
+        .from('reports')
+        .upsert(report)
+        .then(function(res) {
+          if (res.error) return { ok: false, error: res.error };
+          return { ok: true };
+        })
+        .catch(function(e) { return { ok: false, error: e }; });
+    }
+    return attempt().then(function(r1) {
+      if (r1.ok) return { ok: true };
+      console.error('[reportStore.upsert] 1차 실패:', r1.error && r1.error.message ? r1.error.message : r1.error);
+      return attempt().then(function(r2) {
+        if (r2.ok) return { ok: true };
+        console.error('[reportStore.upsert] 재시도 실패:', r2.error && r2.error.message ? r2.error.message : r2.error);
+        return { ok: false, message: (r2.error && r2.error.message) ? r2.error.message : (r1.error && r1.error.message) ? r1.error.message : "네트워크 오류" };
+      });
+    });
   },
   remove: function(id) {
     return supabase

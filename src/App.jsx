@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, Component } from "react";
-import { store, reportStore, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
+import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
 
 // Error Boundary: 백지 화면 방지
 class ErrorBoundary extends Component {
@@ -584,7 +584,12 @@ function EmpReport(p) {
     setFormData(obj);
   }
 
-  function save() {
+  async function save() {
+    var prevReports = reports;        // optimistic 롤백용 스냅샷
+    var prevSelDate = selDate;
+    var prevSelKey = selKey;
+    var prevIsNew = isNew;
+    var prevShowCal = showCal;
     try {
       var u = JSON.parse(JSON.stringify(reports));
       var saveDate = isNew ? newDate : selDate;
@@ -598,18 +603,44 @@ function EmpReport(p) {
       }
       var reportData = Object.assign({}, formData, { savedAt: new Date().toISOString(), employeeName: user.name, userId: user.id });
       u[saveDate][key] = reportData;
+      // 1) optimistic UI 갱신
       p.setReports(u);
-      reportStore.upsert(reportStore.toRow(key, saveDate, reportData)).catch(function(e) { console.error("[save] DB 저장 실패:", e); });
       setEditing(false);
       setIsNew(false);
       setShowCal(false);
       setSelDate(saveDate);
       setSelKey(key);
-      setToast("저장 완료!");
-      setTimeout(function() { setToast(""); }, 2000);
+      // 2) in-flight 등록 (visibility reload race 가드)
+      var row = reportStore.toRow(key, saveDate, reportData);
+      markInflightUpsert(key, saveDate, reportData);
+      // 3) DB 저장 결과 대기 (1회 재시도 포함)
+      var result = await reportStore.upsertWithError(row);
+      clearInflightUpsert(key);
+      if (result && result.ok) {
+        setToast("저장 완료!");
+        setTimeout(function() { setToast(""); }, 2000);
+      } else {
+        // 4) 실패 → optimistic 롤백 + 사용자 알림
+        console.error("[EmpReport.save] DB 저장 실패:", result && result.message);
+        p.setReports(prevReports);
+        setEditing(true);
+        setIsNew(prevIsNew);
+        setShowCal(prevShowCal);
+        setSelDate(prevSelDate);
+        setSelKey(prevSelKey);
+        setToast("저장 실패 — 네트워크 확인 후 다시 시도하세요");
+        setTimeout(function() { setToast(""); }, 3500);
+      }
     } catch(e) {
       console.error("[EmpReport.save] 오류:", e);
-      setToast("저장 실패: " + e.message);
+      // 예외 시에도 안전하게 이전 상태로 복원
+      try { p.setReports(prevReports); } catch(_) {}
+      setEditing(true);
+      setIsNew(prevIsNew);
+      setShowCal(prevShowCal);
+      setSelDate(prevSelDate);
+      setSelKey(prevSelKey);
+      setToast("저장 실패: " + (e && e.message ? e.message : "오류"));
       setTimeout(function() { setToast(""); }, 3000);
     }
   }
@@ -2352,12 +2383,21 @@ function AdminEmployee(p) {
     return list.sort(function(a, b) { return b.date.localeCompare(a.date); });
   }
 
-  function updatePay(date, rk, field, val) {
+  async function updatePay(date, rk, field, val) {
+    var prevReports = reports;
     var u = JSON.parse(JSON.stringify(reports));
-    if (u[date] && u[date][rk]) {
-      u[date][rk][field] = val;
-      setReports(u);
-      reportStore.upsert(reportStore.toRow(rk, date, u[date][rk]));
+    if (!(u[date] && u[date][rk])) return;
+    u[date][rk][field] = val;
+    setReports(u);
+    var updated = u[date][rk];
+    markInflightUpsert(rk, date, updated);
+    var ok = await reportStore.upsert(reportStore.toRow(rk, date, updated));
+    clearInflightUpsert(rk);
+    if (!ok) {
+      console.error("[AdminEmployee.updatePay] 저장 실패, 롤백");
+      setReports(prevReports);
+      setToast("지급 변경 저장 실패 — 다시 시도하세요");
+      setTimeout(function() { setToast(""); }, 3500);
     }
   }
 
@@ -2625,40 +2665,76 @@ function AdminReport(p) {
     setFormData(obj);
   }
 
-  function save() {
+  async function save() {
+    var prevReports = reports;
     try {
       var u = JSON.parse(JSON.stringify(reports));
       if (!u[selDate]) u[selDate] = {};
       var ex = u[selDate][selKey] || {};
       var reportData = Object.assign({}, ex, formData, { savedAt: new Date().toISOString() });
       u[selDate][selKey] = reportData;
+      // optimistic
       setReports(u);
-      reportStore.upsert(reportStore.toRow(selKey, selDate, reportData)).catch(function(e) { console.error("[AdminReport.save] DB 저장 실패:", e); });
       setEditing(false);
-      setToast("수정 완료!");
-      setTimeout(function() { setToast(""); }, 2000);
+      var row = reportStore.toRow(selKey, selDate, reportData);
+      markInflightUpsert(selKey, selDate, reportData);
+      var result = await reportStore.upsertWithError(row);
+      clearInflightUpsert(selKey);
+      if (result && result.ok) {
+        setToast("수정 완료!");
+        setTimeout(function() { setToast(""); }, 2000);
+      } else {
+        console.error("[AdminReport.save] DB 저장 실패:", result && result.message);
+        setReports(prevReports);
+        setEditing(true);
+        setToast("저장 실패 — 네트워크 확인 후 다시 시도하세요");
+        setTimeout(function() { setToast(""); }, 3500);
+      }
     } catch(e) {
       console.error("[AdminReport.save] 오류:", e);
-      setToast("저장 실패: " + e.message);
+      try { setReports(prevReports); } catch(_) {}
+      setEditing(true);
+      setToast("저장 실패: " + (e && e.message ? e.message : "오류"));
       setTimeout(function() { setToast(""); }, 3000);
     }
   }
 
-  function deleteReport() {
+  async function deleteReport() {
     if (!confirm("이 일보를 삭제하시겠습니까?")) return;
+    var prevReports = reports;
+    var prevSelKey = selKey;
+    var prevSelDate = selDate;
     var u = JSON.parse(JSON.stringify(reports));
-    if (u[selDate] && u[selDate][selKey]) {
+    var hadKey = !!(u[selDate] && u[selDate][selKey]);
+    if (hadKey) {
       delete u[selDate][selKey];
       if (Object.keys(u[selDate]).length === 0) delete u[selDate];
       setReports(u);
-      reportStore.remove(selKey);
     } else {
       setReports(u);
     }
     setSelKey(null);
     setSelDate(null);
-    setToast("삭제 완료!");
-    setTimeout(function() { setToast(""); }, 2000);
+    if (!hadKey) {
+      setToast("삭제 완료!");
+      setTimeout(function() { setToast(""); }, 2000);
+      return;
+    }
+    // in-flight delete 가드 + 결과 대기
+    markInflightDelete(prevSelKey);
+    var ok = await reportStore.remove(prevSelKey);
+    clearInflightDelete(prevSelKey);
+    if (ok) {
+      setToast("삭제 완료!");
+      setTimeout(function() { setToast(""); }, 2000);
+    } else {
+      // 롤백: 화면 복원
+      setReports(prevReports);
+      setSelKey(prevSelKey);
+      setSelDate(prevSelDate);
+      setToast("삭제 실패 — 네트워크 확인 후 다시 시도하세요");
+      setTimeout(function() { setToast(""); }, 3500);
+    }
   }
 
   function goBack() {
@@ -3039,6 +3115,8 @@ function App() {
         loadedReports = normalizeReportKeys(legacyReports);
       }
       if (!loadedReports || typeof loadedReports !== "object") loadedReports = {};
+      // 초기 로드 직전 in-flight 변경분이 있으면 (StrictMode 재마운트 등) 보존
+      loadedReports = applyInflightOverlay(loadedReports);
       setReports(loadedReports);
       if (loadedReports && Object.keys(loadedReports).length > 0) setReportsLoaded(true);
       setInventoryItems(res[4]); setInventoryStock(res[5]); setRequests(res[6]);
@@ -3079,6 +3157,9 @@ function App() {
         var reportRows = res[1];
         if (reportRows && reportRows.length > 0) {
           var reloadedReports = reportStore.toReportsObj(reportRows);
+          // in-flight upsert/delete 보존 (visibility race 가드)
+          // — 사용자가 방금 저장 중인 row가 DB에 아직 안 잡혔을 때 stale 결과로 덮어쓰기 방지
+          reloadedReports = applyInflightOverlay(reloadedReports);
           setReports(reloadedReports);
           if (Object.keys(reloadedReports).length > 0) setReportsLoaded(true);
         }
