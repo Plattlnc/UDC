@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, Component } from "react";
-import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
+import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, enqueuePendingReport, getPendingReportsCount, flushPendingReports, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
 
 // Error Boundary: 백지 화면 방지
 class ErrorBoundary extends Component {
@@ -620,16 +620,17 @@ function EmpReport(p) {
         setToast("저장 완료!");
         setTimeout(function() { setToast(""); }, 2000);
       } else {
-        // 4) 실패 → optimistic 롤백 + 사용자 알림
+        // 4) 실패 → 응급 큐 적재 + optimistic 롤백 + 사용자 알림
         console.error("[EmpReport.save] DB 저장 실패:", result && result.message);
+        var pendingCount = enqueuePendingReport(row);
         p.setReports(prevReports);
         setEditing(true);
         setIsNew(prevIsNew);
         setShowCal(prevShowCal);
         setSelDate(prevSelDate);
         setSelKey(prevSelKey);
-        setToast("저장 실패 — 네트워크 확인 후 다시 시도하세요");
-        setTimeout(function() { setToast(""); }, 3500);
+        setToast("저장 실패 — 오프라인 큐에 보관됨 (" + pendingCount + "건 대기, 네트워크 복귀 시 자동 재시도)");
+        setTimeout(function() { setToast(""); }, 4500);
       }
     } catch(e) {
       console.error("[EmpReport.save] 오류:", e);
@@ -2390,13 +2391,15 @@ function AdminEmployee(p) {
     u[date][rk][field] = val;
     setReports(u);
     var updated = u[date][rk];
+    var row = reportStore.toRow(rk, date, updated);
     markInflightUpsert(rk, date, updated);
-    var ok = await reportStore.upsert(reportStore.toRow(rk, date, updated));
+    var ok = await reportStore.upsert(row);
     clearInflightUpsert(rk);
     if (!ok) {
-      console.error("[AdminEmployee.updatePay] 저장 실패, 롤백");
+      console.error("[AdminEmployee.updatePay] 저장 실패, 롤백 + 큐 적재");
+      var pendingCount = enqueuePendingReport(row);
       setReports(prevReports);
-      setToast("지급 변경 저장 실패 — 다시 시도하세요");
+      setToast("지급 변경 저장 실패 — 오프라인 큐 (" + pendingCount + "건)");
       setTimeout(function() { setToast(""); }, 3500);
     }
   }
@@ -2685,10 +2688,11 @@ function AdminReport(p) {
         setTimeout(function() { setToast(""); }, 2000);
       } else {
         console.error("[AdminReport.save] DB 저장 실패:", result && result.message);
+        var pendingCount = enqueuePendingReport(row);
         setReports(prevReports);
         setEditing(true);
-        setToast("저장 실패 — 네트워크 확인 후 다시 시도하세요");
-        setTimeout(function() { setToast(""); }, 3500);
+        setToast("저장 실패 — 오프라인 큐에 보관됨 (" + pendingCount + "건 대기, 네트워크 복귀 시 자동 재시도)");
+        setTimeout(function() { setToast(""); }, 4500);
       }
     } catch(e) {
       console.error("[AdminReport.save] 오류:", e);
@@ -3174,6 +3178,42 @@ function App() {
     return function() { document.removeEventListener("visibilitychange", reload); };
   }, []);
 
+  // 응급 큐 flush — 부팅 시 1회 + online 이벤트마다
+  // 데이터 영구 손실 방지 안전망. 큐가 비워져도 "오프라인 저장 N건 동기화 완료" 토스트로 사용자에게 안내.
+  var r_pendingToast = useState(""), pendingToast = r_pendingToast[0], setPendingToast = r_pendingToast[1];
+  useEffect(function() {
+    function tryFlush(reason) {
+      var before = getPendingReportsCount();
+      if (before === 0) return;
+      flushPendingReports().then(function(stat) {
+        if (!stat) return;
+        if (stat.succeeded > 0) {
+          console.log('[pendingFlush] (' + reason + ') 동기화', stat.succeeded, '/ 남은', stat.remaining);
+          setPendingToast("오프라인 저장 " + stat.succeeded + "건 동기화 완료" + (stat.remaining > 0 ? " (" + stat.remaining + "건 남음)" : ""));
+          setTimeout(function() { setPendingToast(""); }, 4000);
+          // 큐 flush 성공 row를 화면에 즉시 반영 — visibility reload와 동일하게 reportStore.getAll() 한번
+          reportStore.getAll().then(function(rows) {
+            if (rows && rows.length > 0) {
+              var obj = reportStore.toReportsObj(rows);
+              obj = applyInflightOverlay(obj);
+              setReports(obj);
+            }
+          });
+        } else if (stat.tried > 0) {
+          console.warn('[pendingFlush] (' + reason + ') 0건 성공, 모두 보류');
+        }
+      });
+    }
+    // 부팅 직후 1회
+    var bootTimer = setTimeout(function() { tryFlush("boot"); }, 1500);
+    function onOnline() { tryFlush("online"); }
+    if (typeof window !== "undefined") window.addEventListener("online", onOnline);
+    return function() {
+      clearTimeout(bootTimer);
+      if (typeof window !== "undefined") window.removeEventListener("online", onOnline);
+    };
+  }, []);
+
   function login(pin) {
     var emp = users.find(function(e) { return e.pin === pin && (e.status || "active") === "active"; });
     if (emp) {
@@ -3231,6 +3271,8 @@ function App() {
         {pageContent}
       </div>
       {!isUnfolded && <BottomNav tabs={tabs} active={tab} onSelect={setTab} />}
+      {/* 응급 큐 flush 결과 토스트 (앱 전역) */}
+      <Toast msg={pendingToast} isUnfolded={isUnfolded} />
     </div>
   );
 }

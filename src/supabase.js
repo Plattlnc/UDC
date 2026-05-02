@@ -61,6 +61,84 @@ export const store = {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────
+// 응급 localStorage 큐: upsert 실패 row를 누적 저장 → 부팅/online 시 재시도
+// 데이터 영구 손실 방지 안전망. 단말이 살아있는 한 4일치 손실 같은 사고 재발 X.
+// ─────────────────────────────────────────────────────────────────────────
+var PENDING_KEY = "ft-pending-reports";
+
+function _readPending() {
+  try {
+    var raw = (typeof localStorage !== "undefined") ? localStorage.getItem(PENDING_KEY) : null;
+    if (!raw) return [];
+    var arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch(e) {
+    console.error('[pendingReports] read 실패:', e);
+    return [];
+  }
+}
+
+function _writePending(arr) {
+  try {
+    if (typeof localStorage === "undefined") return;
+    if (!Array.isArray(arr) || arr.length === 0) {
+      localStorage.removeItem(PENDING_KEY);
+      return;
+    }
+    localStorage.setItem(PENDING_KEY, JSON.stringify(arr));
+  } catch(e) {
+    console.error('[pendingReports] write 실패:', e);
+  }
+}
+
+// 호출 측: upsert 실패 시 row를 큐에 넣어둠.
+// 같은 id가 이미 있으면 최신본으로 교체 (덮어쓰기 = 사용자 의도).
+export function enqueuePendingReport(row) {
+  if (!row || !row.id) return 0;
+  var arr = _readPending();
+  var idx = arr.findIndex(function(x) { return x && x.id === row.id; });
+  if (idx >= 0) arr[idx] = row;
+  else arr.push(row);
+  _writePending(arr);
+  return arr.length;
+}
+
+export function getPendingReportsCount() {
+  return _readPending().length;
+}
+
+// 큐를 순차로 재시도. 성공한 row는 큐에서 제거. 실패는 그대로 보존.
+// 반환: { tried, succeeded, remaining }
+export function flushPendingReports() {
+  var arr = _readPending();
+  if (arr.length === 0) return Promise.resolve({ tried: 0, succeeded: 0, remaining: 0 });
+  var succeeded = 0;
+  var remaining = [];
+
+  function step(i) {
+    if (i >= arr.length) {
+      _writePending(remaining);
+      return { tried: arr.length, succeeded: succeeded, remaining: remaining.length };
+    }
+    var row = arr[i];
+    return supabase.from('reports').upsert(row).then(function(res) {
+      if (res.error) {
+        console.error('[flushPending] row 실패:', row.id, res.error.message);
+        remaining.push(row);
+      } else {
+        succeeded++;
+      }
+      return step(i + 1);
+    }).catch(function(e) {
+      console.error('[flushPending] 네트워크 실패:', row.id, e);
+      remaining.push(row);
+      return step(i + 1);
+    });
+  }
+  return Promise.resolve(step(0));
+}
+
 // In-flight 추적: visibility reload race 가드 (App.jsx와 공유)
 // upsert/remove 진행 중인 key를 보존해서, reload 결과가 stale이어도 덮어쓰지 못하게 한다.
 var _inflightUpserts = new Map();   // key -> { date, data }
@@ -124,51 +202,37 @@ export var reportStore = {
       })
       .catch(function(e) { console.error('[reportStore.getAll] 네트워크 오류:', e); return null; });
   },
-  // 1회 재시도 포함. 호출 측은 반환 Promise<boolean>을 반드시 await/then 으로 확인할 것.
+  // 단일 시도. 호출 측은 반환 Promise<boolean>을 반드시 await/then 으로 확인할 것.
+  // (재시도 책임은 응급 큐 pendingReportsQueue가 담당 — 중복 메커니즘 회피)
   upsert: function(report) {
-    function attempt() {
-      return supabase
-        .from('reports')
-        .upsert(report)
-        .then(function(res) {
-          if (res.error) {
-            return { ok: false, error: res.error };
-          }
-          return { ok: true };
-        })
-        .catch(function(e) { return { ok: false, error: e }; });
-    }
-    return attempt().then(function(r1) {
-      if (r1.ok) return true;
-      console.error('[reportStore.upsert] 1차 실패:', r1.error && r1.error.message ? r1.error.message : r1.error);
-      return attempt().then(function(r2) {
-        if (r2.ok) return true;
-        console.error('[reportStore.upsert] 재시도 실패:', r2.error && r2.error.message ? r2.error.message : r2.error);
-        return false;
-      });
-    });
+    return supabase
+      .from('reports')
+      .upsert(report)
+      .then(function(res) {
+        if (res.error) {
+          console.error('[reportStore.upsert] 실패:', res.error.message);
+          return false;
+        }
+        return true;
+      })
+      .catch(function(e) { console.error('[reportStore.upsert] 네트워크 오류:', e); return false; });
   },
-  // 가장 최근 upsert 실패 사유 메시지 헬퍼 (UI 토스트용)
+  // 실패 사유 메시지까지 반환 (UI 토스트용). 단일 시도.
   upsertWithError: function(report) {
-    function attempt() {
-      return supabase
-        .from('reports')
-        .upsert(report)
-        .then(function(res) {
-          if (res.error) return { ok: false, error: res.error };
-          return { ok: true };
-        })
-        .catch(function(e) { return { ok: false, error: e }; });
-    }
-    return attempt().then(function(r1) {
-      if (r1.ok) return { ok: true };
-      console.error('[reportStore.upsert] 1차 실패:', r1.error && r1.error.message ? r1.error.message : r1.error);
-      return attempt().then(function(r2) {
-        if (r2.ok) return { ok: true };
-        console.error('[reportStore.upsert] 재시도 실패:', r2.error && r2.error.message ? r2.error.message : r2.error);
-        return { ok: false, message: (r2.error && r2.error.message) ? r2.error.message : (r1.error && r1.error.message) ? r1.error.message : "네트워크 오류" };
+    return supabase
+      .from('reports')
+      .upsert(report)
+      .then(function(res) {
+        if (res.error) {
+          console.error('[reportStore.upsert] 실패:', res.error.message);
+          return { ok: false, message: res.error.message || "DB 오류" };
+        }
+        return { ok: true };
+      })
+      .catch(function(e) {
+        console.error('[reportStore.upsert] 네트워크 오류:', e);
+        return { ok: false, message: (e && e.message) ? e.message : "네트워크 오류" };
       });
-    });
   },
   remove: function(id) {
     return supabase
