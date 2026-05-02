@@ -331,6 +331,39 @@ export var reportStore = {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────
+// Realtime 구독: reports 테이블 변경을 관리자 화면에서 실시간 수신
+// 의존: 003_reports_realtime.sql 적용 (publication + REPLICA IDENTITY FULL)
+// 미적용 상태에서도 SUBSCRIBED 자체는 정상이고 단순히 이벤트가 안 옴
+// (idempotent — 진단 쉬워지도록 status 콜백으로 외부 통보)
+// ─────────────────────────────────────────────────────────────────────────
+export function subscribeReports(opts) {
+  opts = opts || {};
+  var channel = supabase.channel("reports-changes")
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "reports" },
+        function(payload) {
+          try {
+            var et = payload.eventType;
+            if (et === "INSERT" && opts.onInsert) opts.onInsert(payload.new);
+            else if (et === "UPDATE" && opts.onUpdate) opts.onUpdate(payload.new);
+            else if (et === "DELETE" && opts.onDelete) opts.onDelete(payload.old || {});
+          } catch(e) {
+            console.error('[realtime] payload 처리 오류:', e);
+          }
+        })
+    .subscribe(function(status) {
+      // 상태: SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED
+      console.log('[realtime] reports channel:', status);
+      if (opts.onStatus) {
+        try { opts.onStatus(status); } catch(_) {}
+      }
+    });
+  return function unsubscribe() {
+    try { supabase.removeChannel(channel); } catch(e) { console.error('[realtime] removeChannel 오류:', e); }
+  };
+}
+
 // Google Sheets 동기화
 export function getSheetsUrl() {
   return localStorage.getItem("ft-sheets-url") || "";

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, Component } from "react";
-import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, enqueuePendingReport, getPendingReportsCount, flushPendingReports, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
+import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, enqueuePendingReport, getPendingReportsCount, flushPendingReports, subscribeReports, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
 
 // Error Boundary: 백지 화면 방지
 class ErrorBoundary extends Component {
@@ -3177,6 +3177,78 @@ function App() {
     document.addEventListener("visibilitychange", reload);
     return function() { document.removeEventListener("visibilitychange", reload); };
   }, []);
+
+  // ── 관리자(admin) 한정 Realtime 일보 구독 ──────────────────────────────
+  // 직원이 작성/수정/삭제한 reports 변경분을 1초 내 admin 화면에 반영.
+  // staff 화면에는 미구독 (다른 직원 일보 노출 방지 + 트래픽 절감).
+  // 머지는 idempotent — 자기 자신이 발행한 변경이 다시 와도 결과 동일.
+  // publication 미적용 상태면 SUBSCRIBED는 떠도 이벤트 미수신 (코드는 안전).
+  useEffect(function() {
+    if (!user || user.role !== "admin") return;
+
+    function mergeRow(row) {
+      if (!row || !row.id || !row.date) return;
+      // toReportsObj가 row 1건도 정상 변환 (객체 형태로 normalize)
+      var converted;
+      try {
+        var o = reportStore.toReportsObj([row]);
+        converted = o[row.date] && o[row.date][row.id];
+      } catch(e) { console.error('[realtime] mergeRow 변환 오류:', e); return; }
+      if (!converted) return;
+      setReports(function(prev) {
+        var next = Object.assign({}, prev || {});
+        // 다른 날짜에 같은 id가 있으면 (날짜 변경 수정) 제거 후 새 위치에 삽입
+        Object.keys(next).forEach(function(d) {
+          if (d !== row.date && next[d] && next[d][row.id]) {
+            next[d] = Object.assign({}, next[d]);
+            delete next[d][row.id];
+            if (Object.keys(next[d]).length === 0) delete next[d];
+          }
+        });
+        var dateMap = next[row.date] ? Object.assign({}, next[row.date]) : {};
+        dateMap[row.id] = converted;
+        next[row.date] = dateMap;
+        return next;
+      });
+    }
+
+    function removeRow(old) {
+      if (!old || !old.id) return;
+      setReports(function(prev) {
+        if (!prev) return prev;
+        var next = Object.assign({}, prev);
+        // REPLICA IDENTITY FULL 적용 시 old.date 있음 → 빠른 경로
+        if (old.date && next[old.date] && next[old.date][old.id]) {
+          next[old.date] = Object.assign({}, next[old.date]);
+          delete next[old.date][old.id];
+          if (Object.keys(next[old.date]).length === 0) delete next[old.date];
+          return next;
+        }
+        // 미적용 시 (PK만 옴) → 전 날짜 순회
+        var found = false;
+        Object.keys(next).forEach(function(d) {
+          if (next[d] && next[d][old.id]) {
+            next[d] = Object.assign({}, next[d]);
+            delete next[d][old.id];
+            if (Object.keys(next[d]).length === 0) delete next[d];
+            found = true;
+          }
+        });
+        return found ? next : prev;
+      });
+    }
+
+    var unsubscribe = subscribeReports({
+      onInsert: mergeRow,
+      onUpdate: mergeRow,
+      onDelete: removeRow,
+      onStatus: function(status) {
+        // status: SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED
+        // 진단 노이즈 줄이기 위해 console.log는 supabase.js 내부에서만 1회
+      },
+    });
+    return unsubscribe;
+  }, [user && user.role]);
 
   // 응급 큐 flush — 부팅 시 1회 + online 이벤트마다
   // 데이터 영구 손실 방지 안전망. 큐가 비워져도 "오프라인 저장 N건 동기화 완료" 토스트로 사용자에게 안내.
