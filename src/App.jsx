@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, Component } from "react";
-import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, enqueuePendingReport, getPendingReportsCount, flushPendingReports, subscribeReports, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
+import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, enqueuePendingReport, getPendingReportsCount, flushPendingReports, enqueuePendingAppData, getPendingAppDataCount, flushPendingAppData, subscribeReports, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
 
 // Error Boundary: 백지 화면 방지
 class ErrorBoundary extends Component {
@@ -837,15 +837,25 @@ function EmpInventory(p) {
     store.set("ft-inv-stock", u);
   }
 
-  function submit() {
+  async function submit() {
     if (!ri || !rq) return;
+    var prevRequests = requests;
     var item = items.find(function(i) { return i.id === ri; });
     var nr = { id: Date.now(), itemId: ri, itemName: item ? item.name : "", qty: Number(rq), employeeId: user.id, employeeName: user.name, createdAt: new Date().toISOString(), status: "pending" };
-    p.setRequests(requests.concat([nr]));
-    store.set("ft-inv-requests", requests.concat([nr]));
+    var nextRequests = requests.concat([nr]);
+    // optimistic
+    p.setRequests(nextRequests);
     setRi(null); setRq("");
-    setToast("요청 완료!");
-    setTimeout(function() { setToast(""); }, 2000);
+    var r = await store.setWithError("ft-inv-requests", nextRequests);
+    if (r && r.ok) {
+      setToast("요청 완료!");
+      setTimeout(function() { setToast(""); }, 2000);
+    } else {
+      p.setRequests(prevRequests);
+      var pendingCount = enqueuePendingAppData({ key: "ft-inv-requests", value: nextRequests, op: "set" });
+      setToast("요청 실패 — 오프라인 큐 (" + pendingCount + "건)");
+      setTimeout(function() { setToast(""); }, 3500);
+    }
   }
 
   return (
@@ -1717,8 +1727,9 @@ function AdminChicken(p) {
     setProdSettings(u); store.set("ft-prod-settings", u);
   }
 
-  function saveEntry() {
+  async function saveEntry() {
     if (!form.qty || !form.usedKg || !form.kgPrice) return;
+    var prevProduction = production;
     var entry = { date: form.date, type: form.type, qty: Number(form.qty), usedKg: Number(form.usedKg), kgPrice: Number(form.kgPrice), paPrice: form.type === "padak" ? (Number(form.paPrice) || 0) : 0, savedAt: new Date().toISOString() };
     var u;
     if (editId) {
@@ -1727,10 +1738,20 @@ function AdminChicken(p) {
       entry.id = "pr_" + Date.now();
       u = production.concat([entry]);
     }
-    setProduction(u); store.set("ft-production", u);
+    // optimistic
+    setProduction(u);
     setForm({ date: getToday(), type: "sunsal", qty: "", usedKg: "", kgPrice: "", paPrice: "" });
     setAdding(false); setEditId(null);
-    setToast("저장 완료"); setTimeout(function() { setToast(""); }, 2000);
+    var r = await store.setWithError("ft-production", u);
+    if (r && r.ok) {
+      setToast("저장 완료"); setTimeout(function() { setToast(""); }, 2000);
+    } else {
+      // 실패: optimistic 롤백 + 응급 큐 적재
+      setProduction(prevProduction);
+      var pendingCount = enqueuePendingAppData({ key: "ft-production", value: u, op: "set" });
+      setToast("저장 실패 — 오프라인 큐 (" + pendingCount + "건 대기)");
+      setTimeout(function() { setToast(""); }, 3500);
+    }
   }
 
   function delEntry(id) {
@@ -1914,12 +1935,21 @@ function AdminInventory(p) {
 
   function showToast(msg) { setToast(msg); setTimeout(function() { setToast(""); }, 2000); }
 
-  function addItem() {
+  async function addItem() {
     if (!newName.trim()) return;
+    var prevItems = items;
     var ni = { id: "item_" + Date.now(), name: newName.trim(), unitPrice: Number(newPrice) || 0 };
     var u = items.concat([ni]);
-    setItems(u); store.set("ft-inv-items", u);
-    setNewName(""); setNewPrice(0); showToast("품목 추가됨");
+    setItems(u);
+    setNewName(""); setNewPrice(0);
+    var r = await store.setWithError("ft-inv-items", u);
+    if (r && r.ok) {
+      showToast("품목 추가됨");
+    } else {
+      setItems(prevItems);
+      var pc = enqueuePendingAppData({ key: "ft-inv-items", value: u, op: "set" });
+      showToast("추가 실패 — 오프라인 큐 (" + pc + "건)");
+    }
   }
 
   function delItem(id) {
@@ -3250,48 +3280,75 @@ function App() {
     return unsubscribe;
   }, [user && user.role]);
 
-  // 응급 큐 flush — 부팅 시 1회 + online 이벤트마다
-  // 데이터 영구 손실 방지 안전망. 큐가 비워져도 "오프라인 저장 N건 동기화 완료" 토스트로 사용자에게 안내.
+  // 응급 큐 flush — 부팅 시 1회 + online 이벤트마다 (reports + app_data 둘 다)
+  // 데이터 영구 손실 방지 안전망. 큐 비워지면 "오프라인 저장 N건 동기화 완료" 토스트.
   var r_pendingToast = useState(""), pendingToast = r_pendingToast[0], setPendingToast = r_pendingToast[1];
-  // 영구 배지: 큐에 row가 있는 동안 항상 표시 (사용자/관리자 모두 인지)
-  var r_pendingCount = useState(0), pendingCount = r_pendingCount[0], setPendingCount = r_pendingCount[1];
+  // 영구 배지: reports 큐 + app_data 큐 합산 (사용자/관리자 모두 인지)
+  var r_pendingReports = useState(0), pendingReports = r_pendingReports[0], setPendingReports = r_pendingReports[1];
+  var r_pendingAppData = useState(0), pendingAppData = r_pendingAppData[0], setPendingAppData = r_pendingAppData[1];
+  var pendingCount = pendingReports + pendingAppData;
 
-  // supabase.js의 큐 변동 이벤트(`pending-reports-changed`) 구독 → 배지 갱신
+  // 큐 변동 이벤트 구독 → 배지 갱신 (reports 큐 + app_data 큐 별도 추적)
   useEffect(function() {
-    function syncCount() {
-      try { setPendingCount(getPendingReportsCount()); } catch(_) {}
+    function syncCounts() {
+      try { setPendingReports(getPendingReportsCount()); } catch(_) {}
+      try { setPendingAppData(getPendingAppDataCount()); } catch(_) {}
     }
-    syncCount();
-    function onChanged(e) {
+    syncCounts();
+    function onReports(e) {
       var c = (e && e.detail && typeof e.detail.count === "number") ? e.detail.count : getPendingReportsCount();
-      setPendingCount(c);
+      setPendingReports(c);
     }
-    if (typeof window !== "undefined") window.addEventListener("pending-reports-changed", onChanged);
+    function onAppData(e) {
+      var c = (e && e.detail && typeof e.detail.count === "number") ? e.detail.count : getPendingAppDataCount();
+      setPendingAppData(c);
+    }
+    if (typeof window !== "undefined") {
+      window.addEventListener("pending-reports-changed", onReports);
+      window.addEventListener("pending-app-data-changed", onAppData);
+    }
     return function() {
-      if (typeof window !== "undefined") window.removeEventListener("pending-reports-changed", onChanged);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pending-reports-changed", onReports);
+        window.removeEventListener("pending-app-data-changed", onAppData);
+      }
     };
   }, []);
 
   useEffect(function() {
     function tryFlush(reason) {
-      var before = getPendingReportsCount();
-      if (before === 0) return;
-      flushPendingReports().then(function(stat) {
-        if (!stat) return;
-        if (stat.succeeded > 0) {
-          console.log('[pendingFlush] (' + reason + ') 동기화', stat.succeeded, '/ 남은', stat.remaining);
-          setPendingToast("오프라인 저장 " + stat.succeeded + "건 동기화 완료" + (stat.remaining > 0 ? " (" + stat.remaining + "건 남음)" : ""));
+      var beforeReports = getPendingReportsCount();
+      var beforeAppData = getPendingAppDataCount();
+      if (beforeReports === 0 && beforeAppData === 0) return;
+
+      // reports 큐 + app_data 큐 병렬 flush
+      Promise.all([
+        beforeReports > 0 ? flushPendingReports() : Promise.resolve({ tried: 0, succeeded: 0, remaining: 0 }),
+        beforeAppData > 0 ? flushPendingAppData() : Promise.resolve({ tried: 0, succeeded: 0, remaining: 0 }),
+      ]).then(function(results) {
+        var rep = results[0] || { succeeded: 0, remaining: 0 };
+        var ad = results[1] || { succeeded: 0, remaining: 0 };
+        var totalSucc = rep.succeeded + ad.succeeded;
+        var totalRem = rep.remaining + ad.remaining;
+        if (totalSucc > 0) {
+          console.log('[pendingFlush] (' + reason + ') reports:', rep.succeeded, '/ app_data:', ad.succeeded, '/ 남은:', totalRem);
+          var parts = [];
+          if (rep.succeeded > 0) parts.push("일보 " + rep.succeeded + "건");
+          if (ad.succeeded > 0) parts.push("설정/데이터 " + ad.succeeded + "건");
+          setPendingToast("오프라인 저장 " + parts.join(", ") + " 동기화 완료" + (totalRem > 0 ? " (" + totalRem + "건 남음)" : ""));
           setTimeout(function() { setPendingToast(""); }, 4000);
-          // 큐 flush 성공 row를 화면에 즉시 반영 — visibility reload와 동일하게 reportStore.getAll() 한번
-          reportStore.getAll().then(function(rows) {
-            if (rows && rows.length > 0) {
-              var obj = reportStore.toReportsObj(rows);
-              obj = applyInflightOverlay(obj);
-              setReports(obj);
-            }
-          });
-        } else if (stat.tried > 0) {
-          console.warn('[pendingFlush] (' + reason + ') 0건 성공, 모두 보류');
+          // reports 성공분 화면 반영
+          if (rep.succeeded > 0) {
+            reportStore.getAll().then(function(rows) {
+              if (rows && rows.length > 0) {
+                var obj = reportStore.toReportsObj(rows);
+                obj = applyInflightOverlay(obj);
+                setReports(obj);
+              }
+            });
+          }
+        } else if (rep.tried + ad.tried > 0) {
+          console.warn('[pendingFlush] (' + reason + ') 0건 성공, 모두 보류 (reports:', rep.remaining, '/ app_data:', ad.remaining, ')');
         }
       });
     }
@@ -3357,17 +3414,23 @@ function App() {
       : { minHeight: "100vh", background: "#fafafa", maxWidth: 540, margin: "0 auto" }
     }>
       <Header title={titles[tab]} userName={user.name} onLogout={logout} />
-      {/* 응급 큐 영구 배지 — 큐에 row가 있는 동안 항상 표시 */}
+      {/* 응급 큐 영구 배지 — reports 큐 + app_data 큐 합산 */}
       {pendingCount > 0 && (
-        <div style={{
-          position: "sticky", top: 61, zIndex: 90,
-          marginLeft: isUnfolded ? 280 : 0,
-          background: "#fef3c7", color: "#92400e",
-          padding: "8px 16px", fontSize: 13, fontWeight: 600,
-          textAlign: "center",
-          borderBottom: "1px solid #fde68a",
-        }}>
-          ⏳ 오프라인 저장 {pendingCount}건 대기 중 — 네트워크 복귀 시 자동 전송
+        <div
+          title={"일보 " + pendingReports + "건, 설정/데이터 " + pendingAppData + "건 — 네트워크 복귀 시 자동 전송"}
+          style={{
+            position: "sticky", top: 61, zIndex: 90,
+            marginLeft: isUnfolded ? 280 : 0,
+            background: "#fef3c7", color: "#92400e",
+            padding: "8px 16px", fontSize: 13, fontWeight: 600,
+            textAlign: "center",
+            borderBottom: "1px solid #fde68a",
+          }}>
+          ⏳ 오프라인 저장 {pendingCount}건 대기 중
+          {(pendingReports > 0 && pendingAppData > 0)
+            ? <span style={{ fontWeight: 400, marginLeft: 6 }}>(일보 {pendingReports} / 데이터 {pendingAppData})</span>
+            : null}
+          {" — 네트워크 복귀 시 자동 전송"}
         </div>
       )}
       {isUnfolded && <SideNav tabs={tabs} active={tab} onSelect={setTab} />}

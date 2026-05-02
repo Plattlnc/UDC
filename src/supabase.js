@@ -6,7 +6,149 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
+// ─────────────────────────────────────────────────────────────────────────
+// app_data 응급 큐: store.set/merge 실패시 누적 저장 → 부팅/online 시 재시도
+// reports 큐와 동일 패턴. 30+ store.set 호출부를 fire-and-forget으로 두어도
+// 자동 enqueue 안전망이 silent fail로 인한 데이터 손실을 차단.
+// ─────────────────────────────────────────────────────────────────────────
+var APPDATA_PENDING_KEY = "ft-pending-app-data";
+
+function _readAppDataPending() {
+  try {
+    var raw = (typeof localStorage !== "undefined") ? localStorage.getItem(APPDATA_PENDING_KEY) : null;
+    if (!raw) return [];
+    var arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch(e) {
+    console.error('[pendingAppData] read 실패:', e);
+    return [];
+  }
+}
+
+function _writeAppDataPending(arr) {
+  try {
+    if (typeof localStorage === "undefined") return;
+    if (!Array.isArray(arr) || arr.length === 0) {
+      localStorage.removeItem(APPDATA_PENDING_KEY);
+    } else {
+      localStorage.setItem(APPDATA_PENDING_KEY, JSON.stringify(arr));
+    }
+    if (typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(new CustomEvent('pending-app-data-changed', {
+          detail: { count: Array.isArray(arr) ? arr.length : 0 }
+        }));
+      } catch(_) {}
+    }
+  } catch(e) {
+    console.error('[pendingAppData] write 실패:', e);
+  }
+}
+
+// entry: { key, value, op } — op: "set" | "merge"
+// 같은 key는 최신 entry로 교체 (사용자 의도 우선, 앱 도메인 로직에 합당)
+export function enqueuePendingAppData(entry) {
+  if (!entry || !entry.key) return 0;
+  var arr = _readAppDataPending();
+  var idx = arr.findIndex(function(x) { return x && x.key === entry.key; });
+  if (idx >= 0) arr[idx] = entry;
+  else arr.push(entry);
+  _writeAppDataPending(arr);
+  return arr.length;
+}
+
+export function getPendingAppDataCount() {
+  return _readAppDataPending().length;
+}
+
+// 큐 순회 → set/merge 재시도. 성공만 큐에서 제거.
+// op === "merge" 인 entry는 flush 시점에 fresh GET → re-merge → SET
+//   (다른 클라가 중간에 값을 바꿨을 가능성을 반영)
+// 반환: { tried, succeeded, remaining }
+export function flushPendingAppData() {
+  var arr = _readAppDataPending();
+  if (arr.length === 0) return Promise.resolve({ tried: 0, succeeded: 0, remaining: 0 });
+  var succeeded = 0;
+  var remaining = [];
+
+  function done(entry, ok) {
+    if (ok) succeeded++;
+    else remaining.push(entry);
+  }
+
+  function step(i) {
+    if (i >= arr.length) {
+      _writeAppDataPending(remaining);
+      return { tried: arr.length, succeeded: succeeded, remaining: remaining.length };
+    }
+    var entry = arr[i];
+    if (entry.op === 'merge') {
+      return store.get(entry.key, {}).then(function(current) {
+        var merged = _doMerge(current, entry.value);
+        return _attemptAppDataSet(entry.key, merged).then(function(r) {
+          done(entry, r.ok);
+          return step(i + 1);
+        });
+      });
+    }
+    return _attemptAppDataSet(entry.key, entry.value).then(function(r) {
+      done(entry, r.ok);
+      return step(i + 1);
+    });
+  }
+  return Promise.resolve(step(0));
+}
+
+// ─── store 내부 헬퍼 ─────────────────────────────────────────────────────
+function _attemptAppDataSet(key, value) {
+  return supabase
+    .from('app_data')
+    .upsert({ key: key, value: value, updated_at: new Date().toISOString() })
+    .then(function(res) {
+      if (res.error) return { ok: false, error: res.error };
+      return { ok: true };
+    })
+    .catch(function(e) { return { ok: false, error: e }; });
+}
+
+// 1회 재시도 포함. transient 네트워크 보완용.
+function _setWithRetry(key, value) {
+  return _attemptAppDataSet(key, value).then(function(r1) {
+    if (r1.ok) return { ok: true };
+    console.error('[store.set] 1차 실패:', key, r1.error && r1.error.message ? r1.error.message : r1.error);
+    return _attemptAppDataSet(key, value).then(function(r2) {
+      if (r2.ok) return { ok: true };
+      console.error('[store.set] 재시도 실패:', key, r2.error && r2.error.message ? r2.error.message : r2.error);
+      var msg = (r2.error && r2.error.message) ? r2.error.message
+              : (r1.error && r1.error.message) ? r1.error.message
+              : "네트워크 오류";
+      return { ok: false, message: msg };
+    });
+  });
+}
+
+// merge 헬퍼 (current ⊕ partialData) — 기존 store.merge 로직 추출
+function _doMerge(current, partialData) {
+  if (!current || typeof current !== "object" || Array.isArray(current)) return partialData;
+  var merged = Object.assign({}, current);
+  if (!partialData || typeof partialData !== "object") return merged;
+  Object.keys(partialData).forEach(function(k) {
+    if (partialData[k] === null || partialData[k] === undefined) {
+      delete merged[k];
+    } else if (typeof partialData[k] === "object" && !Array.isArray(partialData[k]) && merged[k] && typeof merged[k] === "object") {
+      merged[k] = Object.assign({}, merged[k], partialData[k]);
+    } else {
+      merged[k] = partialData[k];
+    }
+  });
+  return merged;
+}
+
 // window.storage 호환 레이어
+//   • store.set / store.merge: legacy 시그니처 (Promise<boolean>) — 30+ 호출부 호환.
+//     실패시 자동으로 응급 큐에 enqueue (호출부가 결과 미검사여도 안전망)
+//   • store.setWithError / store.mergeWithError: { ok, message? } 반환 — UI 토스트용.
+//     호출부가 결과를 명시적으로 처리할 수 있고, 자동 enqueue X (caller 책임)
 export const store = {
   get: function(key, fallback) {
     return supabase
@@ -20,43 +162,34 @@ export const store = {
       .catch(function() { return fallback; });
   },
   set: function(key, value) {
-    return supabase
-      .from('app_data')
-      .upsert({ key: key, value: value, updated_at: new Date().toISOString() })
-      .then(function(res) {
-        if (res.error) {
-          console.error('[store.set] 저장 실패:', key, res.error.message);
-          // 1회 재시도
-          return supabase
-            .from('app_data')
-            .upsert({ key: key, value: value, updated_at: new Date().toISOString() })
-            .then(function(r2) {
-              if (r2.error) { console.error('[store.set] 재시도 실패:', key, r2.error.message); return false; }
-              return true;
-            });
-        }
-        return true;
-      })
-      .catch(function(e) { console.error('[store.set] 네트워크 오류:', key, e); return false; });
+    return _setWithRetry(key, value).then(function(r) {
+      if (r.ok) return true;
+      // 안전망: 호출부 결과 미검사 가능성 → 자동 enqueue
+      enqueuePendingAppData({ key: key, value: value, op: 'set' });
+      return false;
+    });
+  },
+  setWithError: function(key, value) {
+    return _setWithRetry(key, value);
   },
   merge: function(key, partialData, fallback) {
     return store.get(key, fallback || {}).then(function(current) {
-      var merged;
-      if (current && typeof current === "object" && !Array.isArray(current)) {
-        merged = Object.assign({}, current);
-        Object.keys(partialData).forEach(function(k) {
-          if (partialData[k] === null || partialData[k] === undefined) {
-            delete merged[k];
-          } else if (typeof partialData[k] === "object" && !Array.isArray(partialData[k]) && merged[k] && typeof merged[k] === "object") {
-            merged[k] = Object.assign({}, merged[k], partialData[k]);
-          } else {
-            merged[k] = partialData[k];
-          }
-        });
-      } else {
-        merged = partialData;
-      }
-      return store.set(key, merged).then(function(ok) { return ok ? merged : false; });
+      var merged = _doMerge(current, partialData);
+      return _setWithRetry(key, merged).then(function(r) {
+        if (r.ok) return merged;
+        // 안전망: partialData를 큐에 → flush 시 fresh GET + re-merge로 재시도
+        enqueuePendingAppData({ key: key, value: partialData, op: 'merge' });
+        return false;
+      });
+    });
+  },
+  mergeWithError: function(key, partialData, fallback) {
+    return store.get(key, fallback || {}).then(function(current) {
+      var merged = _doMerge(current, partialData);
+      return _setWithRetry(key, merged).then(function(r) {
+        if (r.ok) return { ok: true, value: merged };
+        return { ok: false, message: r.message };
+      });
     });
   }
 };
@@ -229,6 +362,10 @@ export var reportStore = {
       return attempt().then(function(r2) {
         if (r2.ok) return true;
         console.error('[reportStore.upsert] 재시도 실패:', r2.error && r2.error.message ? r2.error.message : r2.error);
+        // 안전망: 호출부가 결과 미검사일 수 있는 fire-and-forget 경로
+        // (예: AdminHome 백업 복원 batch upsert)에서도 응급 큐에 적재되도록 자동 enqueue.
+        // upsertWithError를 쓰는 호출부는 자체 enqueue (같은 id면 큐 dedupe로 무해).
+        try { enqueuePendingReport(report); } catch(_) {}
         return false;
       });
     });
