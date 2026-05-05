@@ -2,3 +2,7 @@ node_modules
 dist
 .env
 .env.local
+
+# 민감 영업 데이터 (직원/매출/일보 JSON 백업)
+backup-*/
+*.local-backup.json
