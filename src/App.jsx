@@ -281,6 +281,9 @@ function EmpHome(p) {
   var user = p.user, reports = p.reports, settings = p.settings;
   var today = getToday();
   var r3 = useState(10), show = r3[0], setShow = r3[1];
+  // 344px 이하 viewport(Z Fold 커버 등)에서 카드/숫자/패딩 균등 축소
+  var scale = useNarrowScale();
+  function S(n) { return Math.round(n * scale); }
 
   var now = new Date();
   var thisMonthKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
@@ -327,47 +330,52 @@ function EmpHome(p) {
     return Math.floor(m / 60) + "시간 " + (m % 60) + "분";
   }
 
+  // 스케일된 PAGE / 카드 스타일 (344px 이하에서만 축소)
+  var pageStyle = Object.assign({}, PAGE, { padding: S(22) + "px " + S(22) + "px 110px" });
+  var cardStyle = Object.assign({}, CS, { padding: S(22), marginBottom: S(16), borderRadius: S(18) });
+  var cardListStyle = Object.assign({}, CS, { padding: S(22) + "px 0", marginBottom: S(16), borderRadius: S(18) });
+
   return (
-    <div style={PAGE}>
-      <p style={{ fontSize: 16, fontWeight: 600, color: "#71717a", margin: "0 0 13px", textAlign: "center" }}>{formatDate(today)}</p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 13, marginBottom: 16 }}>
-        <div style={CS}>
-          <p style={Object.assign({}, LS, { margin: "0 0 4px" })}>🍗 월간 판매</p>
-          <p style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>{stats.mSold}<span style={{ fontSize: 15, fontWeight: 500, color: "#a1a1aa" }}> 개</span></p>
+    <div style={pageStyle}>
+      <p style={{ fontSize: S(16), fontWeight: 600, color: "#71717a", margin: "0 0 " + S(13) + "px", textAlign: "center" }}>{formatDate(today)}</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S(13), marginBottom: S(16) }}>
+        <div style={cardStyle}>
+          <p style={Object.assign({}, LS, { fontSize: S(14), margin: "0 0 4px" })}>🍗 월간 판매</p>
+          <p style={{ fontSize: S(28), fontWeight: 800, margin: 0, lineHeight: 1.1 }}>{stats.mSold}<span style={{ fontSize: S(15), fontWeight: 500, color: "#a1a1aa" }}> 개</span></p>
         </div>
-        <div style={CS}>
-          <p style={Object.assign({}, LS, { margin: "0 0 4px" })}>🍗 주간 판매</p>
-          <p style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>{stats.wSold}<span style={{ fontSize: 15, fontWeight: 500, color: "#a1a1aa" }}> 개</span></p>
-        </div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 13, marginBottom: 18 }}>
-        <div style={CS}>
-          <p style={Object.assign({}, LS, { margin: "0 0 4px" })}>💰 월간매출</p>
-          <p style={{ fontSize: 22, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(stats.mRev)}</p>
-        </div>
-        <div style={CS}>
-          <p style={Object.assign({}, LS, { margin: "0 0 4px" })}>💰 주간매출</p>
-          <p style={{ fontSize: 22, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(stats.wRev)}</p>
+        <div style={cardStyle}>
+          <p style={Object.assign({}, LS, { fontSize: S(14), margin: "0 0 4px" })}>🍗 주간 판매</p>
+          <p style={{ fontSize: S(28), fontWeight: 800, margin: 0, lineHeight: 1.1 }}>{stats.wSold}<span style={{ fontSize: S(15), fontWeight: 500, color: "#a1a1aa" }}> 개</span></p>
         </div>
       </div>
-      <div style={Object.assign({}, CS, { padding: "22px 0" })}>
-        <p style={{ fontSize: 15, fontWeight: 700, margin: "0 0 13px", padding: "0 22px" }}>📋 근무 현황</p>
-        {hist.length === 0 ? <p style={{ textAlign: "center", padding: 32, color: "#a1a1aa", fontSize: 15 }}>근무 이력이 없습니다</p> : (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S(13), marginBottom: S(18) }}>
+        <div style={cardStyle}>
+          <p style={Object.assign({}, LS, { fontSize: S(14), margin: "0 0 4px" })}>💰 월간매출</p>
+          <p style={{ fontSize: S(22), fontWeight: 800, color: "#e1360a", margin: 0, lineHeight: 1.15 }}>{formatCurrency(stats.mRev)}</p>
+        </div>
+        <div style={cardStyle}>
+          <p style={Object.assign({}, LS, { fontSize: S(14), margin: "0 0 4px" })}>💰 주간매출</p>
+          <p style={{ fontSize: S(22), fontWeight: 800, color: "#e1360a", margin: 0, lineHeight: 1.15 }}>{formatCurrency(stats.wRev)}</p>
+        </div>
+      </div>
+      <div style={cardListStyle}>
+        <p style={{ fontSize: S(15), fontWeight: 700, margin: "0 0 " + S(13) + "px", padding: "0 " + S(22) + "px" }}>📋 근무 현황</p>
+        {hist.length === 0 ? <p style={{ textAlign: "center", padding: S(32), color: "#a1a1aa", fontSize: S(15) }}>근무 이력이 없습니다</p> : (
           <div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", padding: "11px 22px", borderBottom: "1px solid #f4f4f5", fontSize: 13, fontWeight: 600, color: "#a1a1aa" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", padding: S(11) + "px " + S(22) + "px", borderBottom: "1px solid #f4f4f5", fontSize: S(13), fontWeight: 600, color: "#a1a1aa" }}>
               <span>날짜</span><span style={{ textAlign: "center" }}>출/퇴근</span><span style={{ textAlign: "right" }}>근무시간</span>
             </div>
             {hist.slice(0, show).map(function(r, i) {
               var wt = calcMins(r.clockIn, r.clockOut);
               return (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", padding: "13px 22px", borderBottom: "1px solid #f4f4f5", fontSize: 15 }}>
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", padding: S(13) + "px " + S(22) + "px", borderBottom: "1px solid #f4f4f5", fontSize: S(15) }}>
                   <span style={{ fontWeight: 600 }}>{formatDate(r.date)}</span>
-                  <span style={{ textAlign: "center", color: "#71717a", fontSize: 14 }}>{r.clockIn} ~ {r.clockOut || "--:--"}</span>
+                  <span style={{ textAlign: "center", color: "#71717a", fontSize: S(14) }}>{r.clockIn} ~ {r.clockOut || "--:--"}</span>
                   <span style={{ textAlign: "right", fontWeight: 600, color: wt ? "#18181b" : "#a1a1aa" }}>{wt || "-"}</span>
                 </div>
               );
             })}
-            {show < hist.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "calc(100% - 36px)", margin: "13px 18px 0", textAlign: "center", fontSize: 14, color: "#71717a" })}>더 보기</button>}
+            {show < hist.length && <button onClick={function() { setShow(function(c) { return c + 10; }); }} style={Object.assign({}, BO, { width: "calc(100% - " + S(36) + "px)", margin: S(13) + "px " + S(18) + "px 0", textAlign: "center", fontSize: S(14), color: "#71717a" })}>더 보기</button>}
           </div>
         )}
       </div>
@@ -1113,6 +1121,9 @@ function EmpSalary(p) {
 function AdminHome(p) {
   var reports = p.reports, settings = p.settings, production = p.production;
   var r1 = useState(getToday()), selDay = r1[0], setSelDay = r1[1];
+  // 344px 이하 viewport(Z Fold 커버 등)에서 카드/숫자/패딩 균등 축소
+  var scale = useNarrowScale();
+  function S(n) { return Math.round(n * scale); }
   var rs1 = useState(false), syncing = rs1[0], setSyncing = rs1[1];
   var rs2 = useState(""), syncMsg = rs2[0], setSyncMsg = rs2[1];
   var rs3 = useState(false), showSyncSetup = rs3[0], setShowSyncSetup = rs3[1];
@@ -1248,59 +1259,63 @@ function AdminHome(p) {
     return { sunsal: produced.sunsal - consumed.sunsal, padak: produced.padak - consumed.padak };
   }, [production, reports]);
 
+  // 스케일된 PAGE / 카드 스타일 (344px 이하에서만 축소)
+  var pageStyle = Object.assign({}, PAGE, { padding: S(22) + "px " + S(22) + "px 110px" });
+  var cardStyleBase = Object.assign({}, CS, { padding: S(22), marginBottom: S(16), borderRadius: S(18) });
+
   return (
-    <div style={PAGE}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 13, marginBottom: 16 }}>
-        <div style={Object.assign({}, CS, { background: "linear-gradient(135deg,#e1360a,#c42d08)", border: "none" })}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)", margin: "0 0 2px" }}>월 총 매출</p>
-          <p style={{ fontSize: 24, fontWeight: 800, color: "#fff", margin: 0 }}>{formatCurrency(stats.mRev)}</p>
+    <div style={pageStyle}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S(13), marginBottom: S(16) }}>
+        <div style={Object.assign({}, cardStyleBase, { background: "linear-gradient(135deg,#e1360a,#c42d08)", border: "none" })}>
+          <p style={{ fontSize: S(12), fontWeight: 600, color: "rgba(255,255,255,0.7)", margin: "0 0 2px" }}>월 총 매출</p>
+          <p style={{ fontSize: S(24), fontWeight: 800, color: "#fff", margin: 0, lineHeight: 1.15 }}>{formatCurrency(stats.mRev)}</p>
         </div>
-        <div style={CS}>
-          <p style={Object.assign({}, LS, { margin: "0 0 2px" })}>월 총 판매</p>
-          <p style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>{stats.mSold}<span style={{ fontSize: 14, color: "#a1a1aa" }}> 개</span></p>
-        </div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 13, marginBottom: 16 }}>
-        <div style={CS}>
-          <p style={Object.assign({}, LS, { margin: "0 0 2px" })}>주간 매출</p>
-          <p style={{ fontSize: 22, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(stats.wRev)}</p>
-        </div>
-        <div style={CS}>
-          <p style={Object.assign({}, LS, { margin: "0 0 2px" })}>주간 판매</p>
-          <p style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{stats.wSold}<span style={{ fontSize: 14, color: "#a1a1aa" }}> 개</span></p>
+        <div style={cardStyleBase}>
+          <p style={Object.assign({}, LS, { fontSize: S(14), margin: "0 0 2px" })}>월 총 판매</p>
+          <p style={{ fontSize: S(24), fontWeight: 800, margin: 0, lineHeight: 1.15 }}>{stats.mSold}<span style={{ fontSize: S(14), color: "#a1a1aa" }}> 개</span></p>
         </div>
       </div>
-      <div style={Object.assign({}, CS, { padding: 16, marginBottom: 16 })}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>📅 일일 현황</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S(13), marginBottom: S(16) }}>
+        <div style={cardStyleBase}>
+          <p style={Object.assign({}, LS, { fontSize: S(14), margin: "0 0 2px" })}>주간 매출</p>
+          <p style={{ fontSize: S(22), fontWeight: 800, color: "#e1360a", margin: 0, lineHeight: 1.15 }}>{formatCurrency(stats.wRev)}</p>
+        </div>
+        <div style={cardStyleBase}>
+          <p style={Object.assign({}, LS, { fontSize: S(14), margin: "0 0 2px" })}>주간 판매</p>
+          <p style={{ fontSize: S(22), fontWeight: 800, margin: 0, lineHeight: 1.15 }}>{stats.wSold}<span style={{ fontSize: S(14), color: "#a1a1aa" }}> 개</span></p>
+        </div>
+      </div>
+      <div style={Object.assign({}, cardStyleBase, { padding: S(16) })}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: S(16), gap: S(8) }}>
+          <p style={{ fontSize: S(14), fontWeight: 700, margin: 0 }}>📅 일일 현황</p>
           <input type="date" value={selDay} onChange={function(e) { setSelDay(e.target.value); }}
-            style={Object.assign({}, IS, { width: "auto", padding: "4px 11px", fontSize: 14 })} />
+            style={Object.assign({}, IS, { width: "auto", padding: S(4) + "px " + S(11) + "px", fontSize: S(14) })} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S(16) }}>
           <div>
-            <p style={{ fontSize: 13, color: "#71717a", margin: "0 0 4px" }}>매출</p>
-            <p style={{ fontSize: 24, fontWeight: 800, color: "#e1360a", margin: 0 }}>{formatCurrency(stats.dRev)}</p>
+            <p style={{ fontSize: S(13), color: "#71717a", margin: "0 0 4px" }}>매출</p>
+            <p style={{ fontSize: S(24), fontWeight: 800, color: "#e1360a", margin: 0, lineHeight: 1.15 }}>{formatCurrency(stats.dRev)}</p>
           </div>
           <div>
-            <p style={{ fontSize: 13, color: "#71717a", margin: "0 0 4px" }}>판매</p>
-            <p style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>{stats.dSold}<span style={{ fontSize: 14, color: "#a1a1aa" }}> 개</span></p>
+            <p style={{ fontSize: S(13), color: "#71717a", margin: "0 0 4px" }}>판매</p>
+            <p style={{ fontSize: S(24), fontWeight: 800, margin: 0, lineHeight: 1.15 }}>{stats.dSold}<span style={{ fontSize: S(14), color: "#a1a1aa" }}> 개</span></p>
           </div>
         </div>
       </div>
-      <div style={Object.assign({}, CS, { padding: 16 })}>
-        <p style={{ fontSize: 14, fontWeight: 700, margin: "0 0 11px" }}>🍗 사무실 재고</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div style={{ textAlign: "center", padding: 13, background: "#fff8f6", borderRadius: 9 }}>
-            <p style={{ fontSize: 13, color: "#71717a", margin: "0 0 4px" }}>순살</p>
-            <p style={{ fontSize: 32, fontWeight: 800, color: officeStock.sunsal < 0 ? "#e1360a" : "#18181b", margin: 0 }}>{officeStock.sunsal}</p>
+      <div style={Object.assign({}, cardStyleBase, { padding: S(16) })}>
+        <p style={{ fontSize: S(14), fontWeight: 700, margin: "0 0 " + S(11) + "px" }}>🍗 사무실 재고</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S(16) }}>
+          <div style={{ textAlign: "center", padding: S(13), background: "#fff8f6", borderRadius: S(9) }}>
+            <p style={{ fontSize: S(13), color: "#71717a", margin: "0 0 4px" }}>순살</p>
+            <p style={{ fontSize: S(32), fontWeight: 800, color: officeStock.sunsal < 0 ? "#e1360a" : "#18181b", margin: 0, lineHeight: 1.1 }}>{officeStock.sunsal}</p>
           </div>
-          <div style={{ textAlign: "center", padding: 13, background: "#fff8f6", borderRadius: 9 }}>
-            <p style={{ fontSize: 13, color: "#71717a", margin: "0 0 4px" }}>파닭</p>
-            <p style={{ fontSize: 32, fontWeight: 800, color: officeStock.padak < 0 ? "#e1360a" : "#18181b", margin: 0 }}>{officeStock.padak}</p>
+          <div style={{ textAlign: "center", padding: S(13), background: "#fff8f6", borderRadius: S(9) }}>
+            <p style={{ fontSize: S(13), color: "#71717a", margin: "0 0 4px" }}>파닭</p>
+            <p style={{ fontSize: S(32), fontWeight: 800, color: officeStock.padak < 0 ? "#e1360a" : "#18181b", margin: 0, lineHeight: 1.1 }}>{officeStock.padak}</p>
           </div>
         </div>
       </div>
-      <p style={{ fontSize: 15, fontWeight: 700, margin: "13px 0 11px" }}>👥 직원별 현황</p>
+      <p style={{ fontSize: S(15), fontWeight: 700, margin: S(13) + "px 0 " + S(11) + "px" }}>👥 직원별 현황</p>
       {(p.users || []).filter(function(u) { return u.role === "employee" && (u.status || "active") !== "deleted"; }).map(function(emp) {
         var ts = 0, ms = 0, ws = 0, ds = 0;
         Object.entries(reports).forEach(function(e) {
@@ -1317,29 +1332,33 @@ function AdminHome(p) {
           });
         });
         var mLabel = (now.getMonth() + 1) + "월";
+        // ellipsis 제거 + 스케일 적용으로 잘림 없이 정확히 표시
+        var colLabelStyle = { fontSize: S(12), color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 };
+        var colCountStyle = { fontSize: S(16), fontWeight: 800, margin: "0 0 1px", lineHeight: 1.1 };
+        var colCurrencyStyle = { fontSize: S(11), color: "#e1360a", fontWeight: 600, margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" };
         return (
-          <div key={emp.id} style={Object.assign({}, CS, { marginBottom: 11, padding: "13px 18px" })}>
-            <p style={{ fontSize: 16, fontWeight: 700, margin: "0 0 11px", color: "#18181b" }}>{emp.name}{(emp.status || "active") === "resigned" ? <span style={{ fontSize: 12, fontWeight: 600, color: "#e1360a", marginLeft: 7 }}>(퇴사)</span> : ""}</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 11 }}>
+          <div key={emp.id} style={Object.assign({}, CS, { marginBottom: S(11), padding: S(13) + "px " + S(18) + "px", borderRadius: S(18) })}>
+            <p style={{ fontSize: S(16), fontWeight: 700, margin: "0 0 " + S(11) + "px", color: "#18181b" }}>{emp.name}{(emp.status || "active") === "resigned" ? <span style={{ fontSize: S(12), fontWeight: 600, color: "#e1360a", marginLeft: 7 }}>(퇴사)</span> : ""}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: S(11) }}>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>누적</p>
-                <p style={{ fontSize: 16, fontWeight: 800, margin: "0 0 1px" }}>{ts}개</p>
-                <p style={{ fontSize: 11, color: "#e1360a", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(ts * price)}</p>
+                <p style={colLabelStyle}>누적</p>
+                <p style={colCountStyle}>{ts}개</p>
+                <p style={colCurrencyStyle}>{formatCurrency(ts * price)}</p>
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>{mLabel}</p>
-                <p style={{ fontSize: 16, fontWeight: 800, margin: "0 0 1px" }}>{ms}개</p>
-                <p style={{ fontSize: 11, color: "#e1360a", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(ms * price)}</p>
+                <p style={colLabelStyle}>{mLabel}</p>
+                <p style={colCountStyle}>{ms}개</p>
+                <p style={colCurrencyStyle}>{formatCurrency(ms * price)}</p>
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>최근7일</p>
-                <p style={{ fontSize: 16, fontWeight: 800, margin: "0 0 1px" }}>{ws}개</p>
-                <p style={{ fontSize: 11, color: "#e1360a", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(ws * price)}</p>
+                <p style={colLabelStyle}>최근7일</p>
+                <p style={colCountStyle}>{ws}개</p>
+                <p style={colCurrencyStyle}>{formatCurrency(ws * price)}</p>
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 12, color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 }}>{formatDate(selDay).split("(")[0].trim()}</p>
-                <p style={{ fontSize: 16, fontWeight: 800, margin: "0 0 1px" }}>{ds}개</p>
-                <p style={{ fontSize: 11, color: "#e1360a", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatCurrency(ds * price)}</p>
+                <p style={colLabelStyle}>{formatDate(selDay).split("(")[0].trim()}</p>
+                <p style={colCountStyle}>{ds}개</p>
+                <p style={colCurrencyStyle}>{formatCurrency(ds * price)}</p>
               </div>
             </div>
           </div>
@@ -3082,6 +3101,25 @@ function useViewport() {
     return function() { window.removeEventListener("resize", onResize); };
   }, []);
   return vw;
+}
+
+// 좁은 viewport(Z Fold 커버 ~344px)용 스케일 계수.
+// 기존 ×1.1 스케일업의 역방향(0.82 ≈ 1/1.21)으로, 카드/숫자/패딩/간격을 균등 축소
+// → 비율 유지된 상태로 텍스트 overflow 차단.
+//   ≤ 344px : 0.82 (Z Fold 커버 등 극소 viewport)
+//   그 외   : 1.0 (회귀 0건)
+function useNarrowScale() {
+  function compute() {
+    if (typeof window === "undefined") return 1;
+    return window.innerWidth <= 344 ? 0.82 : 1;
+  }
+  var rs = useState(compute), s = rs[0], setS = rs[1];
+  useEffect(function() {
+    function onResize() { setS(compute()); }
+    window.addEventListener("resize", onResize);
+    return function() { window.removeEventListener("resize", onResize); };
+  }, []);
+  return s;
 }
 
 function App() {
