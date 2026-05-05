@@ -546,6 +546,9 @@ function EmpReport(p) {
   var rv1 = useState(nowR.getFullYear()), viewYear = rv1[0], setViewYear = rv1[1];
   var rv2 = useState(nowR.getMonth() + 1), viewMonth = rv2[0], setViewMonth = rv2[1];
   var rv3 = useState(false), viewAll = rv3[0], setViewAll = rv3[1];
+  // 신규 급여 섹션용 스케일 (Task #9 패턴) — 기존 form 영역은 sweep 범위 외
+  var scale = useNarrowScale();
+  function S(n) { return Math.round(n * scale); }
 
   var list = useMemo(function() {
     var l = [];
@@ -667,6 +670,33 @@ function EmpReport(p) {
   var rev = sold * (settings.pricePerUnit || 5000);
   var displayDate = isNew ? newDate : selDate;
 
+  // ── 급여 계산 (EmpSalary L1005-1033 동일 공식 재사용) ──────────────────
+  // empSettings 우선 → settings 글로벌 → default
+  var empSettings = settings.empSettings || {};
+  var hw = (empSettings[user.id] && empSettings[user.id].hourlyWage !== undefined)
+    ? empSettings[user.id].hourlyWage
+    : (settings.hourlyWage || 10000);
+  var sb = (empSettings[user.id] && empSettings[user.id].salesBonus !== undefined)
+    ? empSettings[user.id].salesBonus
+    : (settings.salesBonus || 1400);
+  // formData에서 mins 산출 (조회/편집 동일 — formData가 saved data 거울)
+  var workMins = 0;
+  if (formData.clockIn && formData.clockOut) {
+    var ciP = formData.clockIn.split(":");
+    var coP = formData.clockOut.split(":");
+    workMins = (Number(coP[0]) * 60 + Number(coP[1])) - (Number(ciP[0]) * 60 + Number(ciP[1]));
+    if (workMins < 0) workMins += 1440;
+  }
+  var workHours = Math.floor(workMins / 60);
+  var workRemainMins = workMins % 60;
+  var timePay = Math.round(workMins / 60 * hw);
+  var salesPay = sold * sb;
+  var autoPay = Math.max(timePay, salesPay);
+  // payOverride는 saved row에만 — formData에는 없음
+  var savedRow = (selDate && reports[selDate] && reports[selDate][selKey]) ? reports[selDate][selKey] : null;
+  var hasOverride = !!(savedRow && savedRow.payOverride !== undefined && savedRow.payOverride !== null);
+  var pay = hasOverride ? Number(savedRow.payOverride) : autoPay;
+
   // hooks는 early return 전에 호출해야 함 (React 규칙)
   var viewMonthKey = viewYear + "-" + String(viewMonth).padStart(2, "0");
   var filteredList = useMemo(function() {
@@ -774,6 +804,34 @@ function EmpReport(p) {
             <NumInput label="계좌이체" value={formData.transfer} onChange={function(v) { up("transfer", v); }} disabled={!editing} suffix="원" />
             <NumInput label="현금" value={formData.cash} onChange={function(v) { up("cash", v); }} disabled={!editing} suffix="원" />
           </div>
+        </div>
+        {/* ── 최종 급여 (Task #10) — 편집/조회 모두 동일 카드 ── */}
+        <div style={Object.assign({}, CS, { padding: S(16), marginBottom: S(16) })}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: S(9), margin: "0 0 " + S(11) + "px", flexWrap: "wrap" }}>
+            <p style={{ fontSize: S(14), fontWeight: 700, color: "#18181b", margin: 0 }}>💵 오늘 급여</p>
+            {hasOverride && <span style={{ fontSize: S(11), fontWeight: 700, color: "#fff", background: "#e1360a", padding: "2px 7px", borderRadius: 5 }}>관리자 조정 적용</span>}
+          </div>
+          <div style={{ fontSize: S(13), color: "#71717a", marginBottom: S(6), lineHeight: 1.5 }}>
+            시급 {formatCurrency(hw)} × {workHours}시간 {workRemainMins}분
+            <strong style={{ color: "#18181b", fontWeight: 700, marginLeft: 6 }}>= {formatCurrency(timePay)}</strong>
+          </div>
+          <div style={{ fontSize: S(13), color: "#71717a", marginBottom: S(11), lineHeight: 1.5 }}>
+            판매수당 {formatCurrency(sb)} × {sold}개
+            <strong style={{ color: "#18181b", fontWeight: 700, marginLeft: 6 }}>= {formatCurrency(salesPay)}</strong>
+          </div>
+          <div style={{ fontSize: S(13), color: "#71717a", marginBottom: S(11), padding: S(9) + "px " + S(11) + "px", background: "#f4f4f5", borderRadius: S(7), display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: S(8) }}>
+            <span>자동 산정 (둘 중 큼)</span>
+            <strong style={{ color: "#18181b", fontWeight: 700, fontSize: S(15) }}>{formatCurrency(autoPay)}</strong>
+          </div>
+          <div style={{ borderTop: "1px solid #f0f0f3", paddingTop: S(11), display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: S(8) }}>
+            <p style={{ fontSize: S(14), fontWeight: 700, color: "#18181b", margin: 0 }}>최종 급여</p>
+            <p style={{ fontSize: S(24), fontWeight: 800, color: "#e1360a", margin: 0, lineHeight: 1.1 }}>{formatCurrency(pay)}</p>
+          </div>
+          {hasOverride && (
+            <p style={{ fontSize: S(11), color: "#a1a1aa", margin: S(6) + "px 0 0", textAlign: "right" }}>
+              자동 산정 대비 {pay >= autoPay ? "+" : ""}{formatCurrency(pay - autoPay)}
+            </p>
+          )}
         </div>
         {editing && <button onClick={save} style={BP}>{isNew ? "기록 저장" : "수정 저장"}</button>}
         <Toast msg={toast} isUnfolded={p.isUnfolded} />
