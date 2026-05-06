@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, Component } from "react";
-import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, enqueuePendingReport, getPendingReportsCount, flushPendingReports, enqueuePendingAppData, getPendingAppDataCount, flushPendingAppData, subscribeReports, isClientError, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
+import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, enqueuePendingReport, getPendingReportsCount, flushPendingReports, enqueuePendingAppData, getPendingAppDataCount, flushPendingAppData, subscribeReports, isClientError, inventoryEvents, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
 
 // Error Boundary: 백지 화면 방지
 class ErrorBoundary extends Component {
@@ -535,7 +535,7 @@ function EmpReport(p) {
   var r2 = useState("date"), sortBy = r2[0], setSortBy = r2[1];
   var r3 = useState(10), show = r3[0], setShow = r3[1];
   var r4 = useState(""), toast = r4[0], setToast = r4[1];
-  var emptyForm = { clockIn: "", clockOut: "", ship_sunsal: "", ship_padak: "", sunsal: "", padak: "", loss: "", chobeol: "", transfer: "", cash: "" };
+  var emptyForm = { clockIn: "", clockOut: "", ship_sunsal: "", ship_padak: "", sunsal: "", padak: "", loss: "", chobeol: "", transfer: "", cash: "", return_sunsal: "", return_padak: "" };
   var r5 = useState(emptyForm), formData = r5[0], setFormData = r5[1];
   var r6 = useState(false), editing = r6[0], setEditing = r6[1];
   var r7 = useState(false), isNew = r7[0], setIsNew = r7[1];
@@ -571,7 +571,7 @@ function EmpReport(p) {
   function openReport(date, rk) {
     var ex = reports[date] ? reports[date][rk] : null;
     if (ex) {
-      setFormData({ clockIn: ex.clockIn || "", clockOut: ex.clockOut || "", ship_sunsal: ex.ship_sunsal || "", ship_padak: ex.ship_padak || "", sunsal: ex.sunsal || "", padak: ex.padak || "", loss: ex.loss || "", chobeol: ex.chobeol || "", transfer: ex.transfer || "", cash: ex.cash || "" });
+      setFormData({ clockIn: ex.clockIn || "", clockOut: ex.clockOut || "", ship_sunsal: ex.ship_sunsal || "", ship_padak: ex.ship_padak || "", sunsal: ex.sunsal || "", padak: ex.padak || "", loss: ex.loss || "", chobeol: ex.chobeol || "", transfer: ex.transfer || "", cash: ex.cash || "", return_sunsal: ex.return_sunsal || "", return_padak: ex.return_padak || "" });
       setEditing(false);
     }
     setSelDate(date);
@@ -605,6 +605,16 @@ function EmpReport(p) {
       var u = JSON.parse(JSON.stringify(reports));
       var saveDate = isNew ? newDate : selDate;
       if (!saveDate) { setToast("날짜를 선택하세요"); setTimeout(function() { setToast(""); }, 2000); return; }
+      // T-B: 반품 hard block — 출고보다 많으면 저장 차단
+      var rs = Number(formData.return_sunsal) || 0;
+      var rp = Number(formData.return_padak) || 0;
+      var ss = Number(formData.ship_sunsal) || 0;
+      var sp = Number(formData.ship_padak) || 0;
+      if (rs > ss || rp > sp) {
+        setToast("반품이 출고보다 많습니다 — 다시 확인해 주세요");
+        setTimeout(function() { setToast(""); }, 3500);
+        return;
+      }
       if (!u[saveDate]) u[saveDate] = {};
       var key;
       if (isNew) {
@@ -628,8 +638,31 @@ function EmpReport(p) {
       var result = await reportStore.upsertWithError(row);
       clearInflightUpsert(key);
       if (result && result.ok) {
-        setToast("저장 완료!");
-        setTimeout(function() { setToast(""); }, 2000);
+        // T-E: ledger 이중 쓰기 — shipped + returned 이벤트 INSERT (qty>0 SKU별)
+        // UNIQUE (source_kind, source_id, event_type, sku) → 같은 일보 재저장 시 멱등
+        var ledgerErrors = [];
+        async function logEvent(type, sku, qty) {
+          if (!qty || qty <= 0) return;
+          var r = await inventoryEvents.log({
+            event_type: type, sku: sku, qty: qty,
+            source_kind: 'staff_report', source_id: key, source_user_id: user.id,
+            occurred_on: saveDate
+          });
+          if (!r.ok) ledgerErrors.push({ type: type, sku: sku, code: r.error && r.error.code });
+        }
+        await logEvent('shipped',  'sunsal', ss);
+        await logEvent('shipped',  'padak',  sp);
+        await logEvent('returned', 'sunsal', rs);
+        await logEvent('returned', 'padak',  rp);
+        if (ledgerErrors.length > 0) {
+          // ledger 실패는 사용자에게 부드럽게 안내 — 일보 자체는 저장 완료
+          console.warn('[EmpReport.save] ledger 부분 실패:', ledgerErrors);
+          setToast("저장 완료 (재고 ledger 일부 미반영 — 관리자 확인 필요)");
+          setTimeout(function() { setToast(""); }, 4000);
+        } else {
+          setToast("저장 완료!");
+          setTimeout(function() { setToast(""); }, 2000);
+        }
       } else {
         // 4) 실패 → optimistic 롤백 + 사용자 알림
         console.error("[EmpReport.save] DB 저장 실패:", result && result.message);
@@ -800,6 +833,22 @@ function EmpReport(p) {
             </div>
             <NumInput label="초벌" value={formData.chobeol} onChange={function(v) { up("chobeol", v); }} disabled={!editing} suffix="개" />
           </div>
+        </div>
+        {/* T-B (Task #16): 반품 — 출고분 중 사무실로 다시 들여보낸 분량 */}
+        <div style={Object.assign({}, CS, { padding: 16, marginBottom: 16 })}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 9, margin: "0 0 11px" }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#18181b", margin: 0 }}>↩️ 반품</p>
+            <span style={{ fontSize: 12, color: "#a1a1aa" }}>출고에서 사무실로 다시</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <NumInput label="순살" value={formData.return_sunsal} onChange={function(v) { up("return_sunsal", v); }} disabled={!editing} suffix="개" />
+            <NumInput label="파닭" value={formData.return_padak} onChange={function(v) { up("return_padak", v); }} disabled={!editing} suffix="개" />
+          </div>
+          {(Number(formData.return_sunsal) > Number(formData.ship_sunsal) || Number(formData.return_padak) > Number(formData.ship_padak)) && (
+            <p style={{ fontSize: 12, color: "#e1360a", fontWeight: 600, margin: "8px 0 0" }}>
+              ⚠ 반품이 출고보다 많습니다. 다시 확인해 주세요.
+            </p>
+          )}
         </div>
         <div style={Object.assign({}, CS, { padding: 16, marginBottom: 16 })}>
           <p style={{ fontSize: 14, fontWeight: 700, color: "#18181b", margin: "0 0 11px" }}>💰 매출</p>
@@ -1871,7 +1920,26 @@ function AdminChicken(p) {
     setAdding(false); setEditId(null);
     var r = await store.setWithError("ft-production", u);
     if (r && r.ok) {
-      setToast("저장 완료"); setTimeout(function() { setToast(""); }, 2000);
+      // T-D: ledger 이중 쓰기 — production 이벤트 INSERT (UNIQUE로 멱등, 수정 재저장 안전)
+      // ft-production 보존 (Sheets sync 호환) — ledger는 별도 추가 데이터.
+      var entryId = entry.id || (editId || ("pr_" + Date.now()));
+      var lr = await inventoryEvents.log({
+        event_type: 'production',
+        sku: entry.type, // "sunsal" | "padak"
+        qty: entry.qty,
+        source_kind: 'production_log',
+        source_id: entryId,
+        source_user_id: null, // production은 admin 작성 — user 추적 불필요
+        occurred_on: entry.date
+      });
+      if (lr && lr.ok) {
+        setToast("저장 완료"); setTimeout(function() { setToast(""); }, 2000);
+      } else {
+        // ledger 실패는 ft-production 저장은 유지 — 안내만
+        console.warn('[Production.saveEntry] ledger INSERT 실패:', lr && lr.error && lr.error.code);
+        setToast("저장 완료 (재고 ledger 동기화 실패 — 카운터 미반영)");
+        setTimeout(function() { setToast(""); }, 4000);
+      }
     } else {
       // 실패: optimistic 롤백
       setProduction(prevProduction);
@@ -2795,7 +2863,7 @@ function AdminReport(p) {
   var arv1 = useState(nowAR.getFullYear()), arViewYear = arv1[0], setArViewYear = arv1[1];
   var arv2 = useState(nowAR.getMonth() + 1), arViewMonth = arv2[0], setArViewMonth = arv2[1];
   var arv3 = useState(false), arViewAll = arv3[0], setArViewAll = arv3[1];
-  var emptyForm = { clockIn: "", clockOut: "", ship_sunsal: "", ship_padak: "", sunsal: "", padak: "", loss: "", chobeol: "", transfer: "", cash: "" };
+  var emptyForm = { clockIn: "", clockOut: "", ship_sunsal: "", ship_padak: "", sunsal: "", padak: "", loss: "", chobeol: "", transfer: "", cash: "", return_sunsal: "", return_padak: "" };
   var r6 = useState(emptyForm), formData = r6[0], setFormData = r6[1];
   var r7 = useState(false), editing = r7[0], setEditing = r7[1];
 
@@ -2822,7 +2890,7 @@ function AdminReport(p) {
   function openReport(date, rk) {
     var ex = reports[date] ? reports[date][rk] : null;
     if (ex) {
-      setFormData({ clockIn: ex.clockIn || "", clockOut: ex.clockOut || "", ship_sunsal: ex.ship_sunsal || "", ship_padak: ex.ship_padak || "", sunsal: ex.sunsal || "", padak: ex.padak || "", loss: ex.loss || "", chobeol: ex.chobeol || "", transfer: ex.transfer || "", cash: ex.cash || "" });
+      setFormData({ clockIn: ex.clockIn || "", clockOut: ex.clockOut || "", ship_sunsal: ex.ship_sunsal || "", ship_padak: ex.ship_padak || "", sunsal: ex.sunsal || "", padak: ex.padak || "", loss: ex.loss || "", chobeol: ex.chobeol || "", transfer: ex.transfer || "", cash: ex.cash || "", return_sunsal: ex.return_sunsal || "", return_padak: ex.return_padak || "" });
       setEditing(false);
     }
     setSelDate(date);
@@ -2838,6 +2906,16 @@ function AdminReport(p) {
   async function save() {
     var prevReports = reports;
     try {
+      // T-B: 반품 hard block (admin 측도 동일 검증)
+      var rs = Number(formData.return_sunsal) || 0;
+      var rp = Number(formData.return_padak) || 0;
+      var ss = Number(formData.ship_sunsal) || 0;
+      var sp = Number(formData.ship_padak) || 0;
+      if (rs > ss || rp > sp) {
+        setToast("반품이 출고보다 많습니다 — 다시 확인해 주세요");
+        setTimeout(function() { setToast(""); }, 3500);
+        return;
+      }
       var u = JSON.parse(JSON.stringify(reports));
       if (!u[selDate]) u[selDate] = {};
       var ex = u[selDate][selKey] || {};
@@ -2851,8 +2929,30 @@ function AdminReport(p) {
       var result = await reportStore.upsertWithError(row);
       clearInflightUpsert(selKey);
       if (result && result.ok) {
-        setToast("수정 완료!");
-        setTimeout(function() { setToast(""); }, 2000);
+        // T-E: ledger 이중 쓰기 — UNIQUE로 멱등 (수정 재저장도 안전)
+        var ledgerErrors = [];
+        async function logEvent(type, sku, qty) {
+          if (!qty || qty <= 0) return;
+          var r = await inventoryEvents.log({
+            event_type: type, sku: sku, qty: qty,
+            source_kind: 'staff_report', source_id: selKey,
+            source_user_id: reportData.userId || null,
+            occurred_on: selDate
+          });
+          if (!r.ok) ledgerErrors.push({ type: type, sku: sku, code: r.error && r.error.code });
+        }
+        await logEvent('shipped',  'sunsal', ss);
+        await logEvent('shipped',  'padak',  sp);
+        await logEvent('returned', 'sunsal', rs);
+        await logEvent('returned', 'padak',  rp);
+        if (ledgerErrors.length > 0) {
+          console.warn('[AdminReport.save] ledger 부분 실패:', ledgerErrors);
+          setToast("수정 완료 (재고 ledger 일부 미반영)");
+          setTimeout(function() { setToast(""); }, 4000);
+        } else {
+          setToast("수정 완료!");
+          setTimeout(function() { setToast(""); }, 2000);
+        }
       } else {
         console.error("[AdminReport.save] DB 저장 실패:", result && result.message);
         setReports(prevReports);
@@ -3040,6 +3140,22 @@ function AdminReport(p) {
             </div>
             <NumInput label="초벌" value={formData.chobeol} onChange={function(v) { up("chobeol", v); }} disabled={!editing} suffix="개" />
           </div>
+        </div>
+        {/* T-B (Task #16): 반품 — 출고분 중 사무실로 다시 들여보낸 분량 */}
+        <div style={Object.assign({}, CS, { padding: 16, marginBottom: 16 })}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 9, margin: "0 0 11px" }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#18181b", margin: 0 }}>↩️ 반품</p>
+            <span style={{ fontSize: 12, color: "#a1a1aa" }}>출고에서 사무실로 다시</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <NumInput label="순살" value={formData.return_sunsal} onChange={function(v) { up("return_sunsal", v); }} disabled={!editing} suffix="개" />
+            <NumInput label="파닭" value={formData.return_padak} onChange={function(v) { up("return_padak", v); }} disabled={!editing} suffix="개" />
+          </div>
+          {(Number(formData.return_sunsal) > Number(formData.ship_sunsal) || Number(formData.return_padak) > Number(formData.ship_padak)) && (
+            <p style={{ fontSize: 12, color: "#e1360a", fontWeight: 600, margin: "8px 0 0" }}>
+              ⚠ 반품이 출고보다 많습니다. 다시 확인해 주세요.
+            </p>
+          )}
         </div>
         <div style={Object.assign({}, CS, { padding: 16, marginBottom: 16 })}>
           <p style={{ fontSize: 14, fontWeight: 700, color: "#18181b", margin: "0 0 11px" }}>💰 매출</p>

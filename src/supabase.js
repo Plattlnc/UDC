@@ -477,6 +477,9 @@ export var reportStore = {
           memo: r.memo || "",
           paid: !!r.paid,
           payOverride: r.pay_override !== null && r.pay_override !== undefined ? Number(r.pay_override) : undefined,
+          // 반품 (Task #16, 마이그레이션 006). 미적용 환경에선 undefined → 0
+          return_sunsal: Number(r.return_sunsal) || 0,
+          return_padak: Number(r.return_padak) || 0,
           savedAt: r.saved_at || r.created_at || new Date().toISOString()
         };
       } catch(e) {
@@ -506,7 +509,115 @@ export var reportStore = {
       memo: data.memo || "",
       paid: !!data.paid,
       pay_override: data.payOverride !== undefined && data.payOverride !== null ? Number(data.payOverride) : null,
+      // 반품 (Task #16). 마이그레이션 006 적용 전 환경에서도 0 default 안전.
+      return_sunsal: parseInt(data.return_sunsal, 10) || 0,
+      return_padak: parseInt(data.return_padak, 10) || 0,
       saved_at: data.savedAt || new Date().toISOString()
+    };
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// inventoryEvents helper (Task #16, T-D + T-E)
+// 의존: 004_inventory_events_ledger.sql 적용
+// 미적용 환경에서는 42P01 (relation 없음) → isClientError true → 큐 우회 + 콘솔 경고
+// ─────────────────────────────────────────────────────────────────────────
+export var inventoryEvents = {
+  // INSERT 1건. 같은 (source_kind, source_id, event_type, sku) UNIQUE — 재시도 멱등.
+  // 반환: { ok: true, data } 또는 { ok: false, error, message } (T-K 가드용)
+  log: function(payload) {
+    if (!payload || !payload.event_type || !payload.sku || !payload.qty) {
+      return Promise.resolve({ ok: false, error: { code: 'CLIENT_VALIDATION', message: '필수 필드 누락' }, message: '필수 필드 누락' });
+    }
+    var row = {
+      event_type: payload.event_type,
+      sku: payload.sku,
+      qty: parseInt(payload.qty, 10),
+      source_kind: payload.source_kind || null,
+      source_id: payload.source_id || null,
+      source_user_id: payload.source_user_id || null,
+      occurred_on: payload.occurred_on,
+      note: payload.note || null
+    };
+    return supabase
+      .from('inventory_events')
+      .insert(row)
+      .select()
+      .single()
+      .then(function(res) {
+        if (res.error) {
+          // UNIQUE 위반(23505): 이미 동일 source의 이벤트 존재 → 멱등 성공으로 취급
+          if (String(res.error.code || '') === '23505') {
+            console.log('[inventoryEvents.log] dup ignored (idempotent):', payload.event_type, payload.sku, payload.source_id);
+            return { ok: true, data: null, idempotent: true };
+          }
+          console.error('[inventoryEvents.log] 실패:', res.error.code, res.error.message);
+          return { ok: false, error: res.error, message: res.error.message };
+        }
+        return { ok: true, data: res.data };
+      })
+      .catch(function(e) {
+        console.error('[inventoryEvents.log] 네트워크 오류:', e);
+        return { ok: false, error: e, message: (e && e.message) || '네트워크 오류' };
+      });
+  },
+  // sku별 현재 재고 합계 — view inventory_balance 조회.
+  balance: function(sku) {
+    var q = supabase.from('inventory_balance').select('*');
+    if (sku) q = q.eq('sku', sku);
+    return q.then(function(res) {
+      if (res.error) {
+        console.error('[inventoryEvents.balance] 실패:', res.error.message);
+        return { ok: false, error: res.error };
+      }
+      return { ok: true, data: res.data || [] };
+    }).catch(function(e) { return { ok: false, error: e }; });
+  },
+  // 일별 잔량 — view inventory_daily_balance.
+  dailyBalance: function(sku, fromDate) {
+    var q = supabase.from('inventory_daily_balance').select('*');
+    if (sku) q = q.eq('sku', sku);
+    if (fromDate) q = q.gte('occurred_on', fromDate);
+    return q.then(function(res) {
+      if (res.error) return { ok: false, error: res.error };
+      return { ok: true, data: res.data || [] };
+    }).catch(function(e) { return { ok: false, error: e }; });
+  },
+  // 검증 경고: returned > shipped 케이스 (직원/일별/sku별)
+  warnings: function() {
+    return supabase
+      .from('inventory_warnings_returned_exceeds_shipped')
+      .select('*')
+      .then(function(res) {
+        if (res.error) {
+          console.error('[inventoryEvents.warnings] 실패:', res.error.message);
+          return { ok: false, error: res.error, data: [] };
+        }
+        return { ok: true, data: res.data || [] };
+      })
+      .catch(function(e) { return { ok: false, error: e, data: [] }; });
+  },
+  // Realtime 채널 구독 (subscribeReports 패턴 그대로)
+  // 의존: 004 publication + REPLICA IDENTITY FULL
+  subscribe: function(opts) {
+    opts = opts || {};
+    var channel = supabase.channel("inventory-events-changes")
+      .on("postgres_changes",
+          { event: "*", schema: "public", table: "inventory_events" },
+          function(payload) {
+            try {
+              var et = payload.eventType;
+              if (et === "INSERT" && opts.onInsert) opts.onInsert(payload.new);
+              else if (et === "UPDATE" && opts.onUpdate) opts.onUpdate(payload.new);
+              else if (et === "DELETE" && opts.onDelete) opts.onDelete(payload.old || {});
+            } catch(e) { console.error('[realtime] inventory_events 페이로드 오류:', e); }
+          })
+      .subscribe(function(status) {
+        console.log('[realtime] inventory_events channel:', status);
+        if (opts.onStatus) { try { opts.onStatus(status); } catch(_) {} }
+      });
+    return function unsubscribe() {
+      try { supabase.removeChannel(channel); } catch(e) { console.error('[realtime] removeChannel(inv) 오류:', e); }
     };
   }
 };
