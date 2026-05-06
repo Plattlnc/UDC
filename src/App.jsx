@@ -1187,6 +1187,25 @@ function AdminHome(p) {
   var rs3 = useState(false), showSyncSetup = rs3[0], setShowSyncSetup = rs3[1];
   var rs4 = useState(getSheetsUrl()), sheetsUrl = rs4[0], setSheetsUrl_ = rs4[1];
 
+  // T-H: 자정 rollover — 자정 도달 시 state bump으로 thisMonthKey/weekKey 재계산
+  // 클라이언트 timezone 기준 (한국 한정 사용자라 KST = 클라이언트 timezone 가정)
+  var rTick = useState(0), midnightTick = rTick[0], setMidnightTick = rTick[1];
+  useEffect(function() {
+    var timer = null;
+    function schedule() {
+      var n = new Date();
+      var nextMidnight = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 0, 50);
+      var ms = nextMidnight - n;
+      if (ms < 1000) ms = 1000; // 음수/너무 짧음 방어
+      timer = setTimeout(function() {
+        setMidnightTick(function(c) { return c + 1; });
+        schedule(); // 다음 자정 재예약
+      }, ms);
+    }
+    schedule();
+    return function() { if (timer) clearTimeout(timer); };
+  }, []);
+
   function doSync() {
     setSyncing(true); setSyncMsg("");
     var payload = {
@@ -1297,7 +1316,7 @@ function AdminHome(p) {
       });
     });
     return { mSold: mSold, mRev: mSold * price, wSold: wSold, wRev: wSold * price, dSold: dSold, dRev: dSold * price };
-  }, [reports, settings, thisMonthKey, weekKey, selDay, price]);
+  }, [reports, settings, thisMonthKey, weekKey, selDay, price, midnightTick]);
 
   var officeStock = useMemo(function() {
     var produced = { sunsal: 0, padak: 0 };
@@ -1375,48 +1394,67 @@ function AdminHome(p) {
       </div>
       <p style={{ fontSize: S(15), fontWeight: 700, margin: S(13) + "px 0 " + S(11) + "px" }}>👥 직원별 현황</p>
       {(p.users || []).filter(function(u) { return u.role === "employee" && (u.status || "active") !== "deleted"; }).map(function(emp) {
-        var ts = 0, ms = 0, ws = 0, ds = 0;
+        // T-G: 5필드 — 누적 판매/매출, 월 판매/매출, 월 급여 (Task #10 공식 재사용)
+        // empSettings 우선 → settings 글로벌 → default (EmpSalary L1064-1066 패턴)
+        var empSettingsMap = settings.empSettings || {};
+        var empHw = (empSettingsMap[emp.id] && empSettingsMap[emp.id].hourlyWage !== undefined)
+          ? empSettingsMap[emp.id].hourlyWage : (settings.hourlyWage || 10000);
+        var empSb = (empSettingsMap[emp.id] && empSettingsMap[emp.id].salesBonus !== undefined)
+          ? empSettingsMap[emp.id].salesBonus : (settings.salesBonus || 1400);
+        var totalSold = 0, monthSold = 0, monthPay = 0;
         Object.entries(reports).forEach(function(e) {
           var date = e[0], dr = e[1];
           Object.values(dr).forEach(function(r) {
             var uid = r.userId || "";
-            if (uid === emp.id && r.savedAt) {
-              var s = (Number(r.sunsal) || 0) + (Number(r.padak) || 0);
-              ts += s;
-              if (date.substring(0, 7) === thisMonthKey) ms += s;
-              if (date >= weekKey) ws += s;
-              if (date === selDay) ds += s;
+            if (uid !== emp.id || !r.savedAt) return;
+            var s = (Number(r.sunsal) || 0) + (Number(r.padak) || 0);
+            totalSold += s;
+            if (date.substring(0, 7) === thisMonthKey) {
+              monthSold += s;
+              // 월 급여: 일자별 자동 산정(둘 중 큼) + payOverride 적용 후 합산
+              var mins = 0;
+              if (r.clockIn && r.clockOut) {
+                var a = r.clockIn.split(":"), b = r.clockOut.split(":");
+                mins = (Number(b[0]) * 60 + Number(b[1])) - (Number(a[0]) * 60 + Number(a[1]));
+                if (mins < 0) mins += 1440;
+              }
+              var timePay = Math.round(mins / 60 * empHw);
+              var salesPay = s * empSb;
+              var dailyPay = (r.payOverride !== undefined && r.payOverride !== null)
+                ? Number(r.payOverride) : Math.max(timePay, salesPay);
+              monthPay += dailyPay;
             }
           });
         });
         var mLabel = (now.getMonth() + 1) + "월";
-        // ellipsis 제거 + 스케일 적용으로 잘림 없이 정확히 표시
-        var colLabelStyle = { fontSize: S(12), color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 };
-        var colCountStyle = { fontSize: S(16), fontWeight: 800, margin: "0 0 1px", lineHeight: 1.1 };
-        var colCurrencyStyle = { fontSize: S(11), color: "#e1360a", fontWeight: 600, margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" };
+        // ellipsis 미사용 — scale 축소로 자연 fit (Task #9 패턴)
+        var colLabelStyle = { fontSize: S(11), color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 };
+        var colNumStyle = { fontSize: S(15), fontWeight: 800, margin: "0 0 1px", lineHeight: 1.1 };
+        var colSubStyle = { fontSize: S(10), color: "#71717a", fontWeight: 500, margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" };
+        var colPayStyle = { fontSize: S(13), color: "#e1360a", fontWeight: 800, margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" };
         return (
-          <div key={emp.id} style={Object.assign({}, CS, { marginBottom: S(11), padding: S(13) + "px " + S(18) + "px", borderRadius: S(18) })}>
+          <div key={emp.id} style={Object.assign({}, CS, { marginBottom: S(11), padding: S(13) + "px " + S(14) + "px", borderRadius: S(18) })}>
             <p style={{ fontSize: S(16), fontWeight: 700, margin: "0 0 " + S(11) + "px", color: "#18181b" }}>{emp.name}{(emp.status || "active") === "resigned" ? <span style={{ fontSize: S(12), fontWeight: 600, color: "#e1360a", marginLeft: 7 }}>(퇴사)</span> : ""}</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: S(11) }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: S(8) }}>
               <div style={{ minWidth: 0 }}>
-                <p style={colLabelStyle}>누적</p>
-                <p style={colCountStyle}>{ts}개</p>
-                <p style={colCurrencyStyle}>{formatCurrency(ts * price)}</p>
+                <p style={colLabelStyle}>누적 판매</p>
+                <p style={colNumStyle}>{totalSold}<span style={{ fontSize: S(10), color: "#a1a1aa", fontWeight: 500 }}>개</span></p>
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={colLabelStyle}>{mLabel}</p>
-                <p style={colCountStyle}>{ms}개</p>
-                <p style={colCurrencyStyle}>{formatCurrency(ms * price)}</p>
+                <p style={colLabelStyle}>누적 매출</p>
+                <p style={Object.assign({}, colPayStyle, { fontSize: S(12), color: "#71717a" })}>{formatCurrency(totalSold * price)}</p>
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={colLabelStyle}>최근7일</p>
-                <p style={colCountStyle}>{ws}개</p>
-                <p style={colCurrencyStyle}>{formatCurrency(ws * price)}</p>
+                <p style={colLabelStyle}>{mLabel} 판매</p>
+                <p style={colNumStyle}>{monthSold}<span style={{ fontSize: S(10), color: "#a1a1aa", fontWeight: 500 }}>개</span></p>
               </div>
               <div style={{ minWidth: 0 }}>
-                <p style={colLabelStyle}>{formatDate(selDay).split("(")[0].trim()}</p>
-                <p style={colCountStyle}>{ds}개</p>
-                <p style={colCurrencyStyle}>{formatCurrency(ds * price)}</p>
+                <p style={colLabelStyle}>{mLabel} 매출</p>
+                <p style={Object.assign({}, colPayStyle, { fontSize: S(12), color: "#71717a" })}>{formatCurrency(monthSold * price)}</p>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={colLabelStyle}>{mLabel} 급여</p>
+                <p style={colPayStyle}>{formatCurrency(monthPay)}</p>
               </div>
             </div>
           </div>
