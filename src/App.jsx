@@ -1465,12 +1465,12 @@ function AdminHome(p) {
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S(13), marginBottom: S(16) }}>
         <div style={Object.assign({}, cardStyleBase, { background: "linear-gradient(135deg,#e1360a,#c42d08)", border: "none", marginBottom: 0 })}>
-          <p style={{ fontSize: S(12), fontWeight: 600, color: "rgba(255,255,255,0.75)", margin: "0 0 2px" }}>실시간 현재 월 총 매출</p>
-          <p style={{ fontSize: S(26), fontWeight: 800, color: "#fff", margin: 0, lineHeight: 1.15 }}>{formatCurrency(stats.mRev)}</p>
+          <p style={{ fontSize: S(13), fontWeight: 600, color: "rgba(255,255,255,0.75)", margin: "0 0 4px" }}>실시간 현재 월 총 매출</p>
+          <p style={{ fontSize: S(32), fontWeight: 800, color: "#fff", margin: 0, lineHeight: 1.15 }}>{formatCurrency(stats.mRev)}</p>
         </div>
         <div style={Object.assign({}, cardStyleBase, { marginBottom: 0 })}>
-          <p style={Object.assign({}, LS, { fontSize: S(12), margin: "0 0 2px" })}>실시간 현재 월 총 판매</p>
-          <p style={{ fontSize: S(26), fontWeight: 800, margin: 0, lineHeight: 1.15 }}>{stats.mSold}<span style={{ fontSize: S(14), color: "#a1a1aa" }}> 개</span></p>
+          <p style={Object.assign({}, LS, { fontSize: S(13), margin: "0 0 4px" })}>실시간 현재 월 총 판매</p>
+          <p style={{ fontSize: S(32), fontWeight: 800, margin: 0, lineHeight: 1.15 }}>{stats.mSold}<span style={{ fontSize: S(16), color: "#a1a1aa" }}> 개</span></p>
         </div>
       </div>
 
@@ -1483,17 +1483,17 @@ function AdminHome(p) {
       </p>
       <div style={Object.assign({}, cardStyleBase, { padding: S(18), marginBottom: 0 })}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S(16) }}>
-          <div style={{ textAlign: "center", padding: S(15), background: "#fff8f6", borderRadius: S(11), border: "1px solid #fde6e0" }}>
-            <p style={{ fontSize: S(11), color: "#a1a1aa", fontWeight: 700, margin: "0 0 2px" }}>1</p>
-            <p style={{ fontSize: S(13), color: "#71717a", margin: "0 0 4px", fontWeight: 600 }}>순살</p>
-            <p style={{ fontSize: S(36), fontWeight: 800, color: officeStock.sunsal < 0 ? "#e1360a" : "#e1360a", margin: 0, lineHeight: 1.05 }}>{officeStock.sunsal}</p>
-            {officeStock.sunsal < 0 && <p style={{ fontSize: S(10), color: "#e1360a", fontWeight: 700, margin: "3px 0 0" }}>보정 필요</p>}
+          <div style={{ textAlign: "center", padding: S(18), background: "#fff8f6", borderRadius: S(11), border: "1px solid #fde6e0" }}>
+            <p style={{ fontSize: S(13), color: "#a1a1aa", fontWeight: 700, margin: "0 0 3px" }}>1</p>
+            <p style={{ fontSize: S(15), color: "#71717a", margin: "0 0 6px", fontWeight: 600 }}>순살</p>
+            <p style={{ fontSize: S(44), fontWeight: 800, color: officeStock.sunsal < 0 ? "#e1360a" : "#e1360a", margin: 0, lineHeight: 1.05 }}>{officeStock.sunsal}</p>
+            {officeStock.sunsal < 0 && <p style={{ fontSize: S(11), color: "#e1360a", fontWeight: 700, margin: "4px 0 0" }}>보정 필요</p>}
           </div>
-          <div style={{ textAlign: "center", padding: S(15), background: "#fff8f6", borderRadius: S(11), border: "1px solid #fde6e0" }}>
-            <p style={{ fontSize: S(11), color: "#a1a1aa", fontWeight: 700, margin: "0 0 2px" }}>2</p>
-            <p style={{ fontSize: S(13), color: "#71717a", margin: "0 0 4px", fontWeight: 600 }}>파닭</p>
-            <p style={{ fontSize: S(36), fontWeight: 800, color: officeStock.padak < 0 ? "#e1360a" : "#e1360a", margin: 0, lineHeight: 1.05 }}>{officeStock.padak}</p>
-            {officeStock.padak < 0 && <p style={{ fontSize: S(10), color: "#e1360a", fontWeight: 700, margin: "3px 0 0" }}>보정 필요</p>}
+          <div style={{ textAlign: "center", padding: S(18), background: "#fff8f6", borderRadius: S(11), border: "1px solid #fde6e0" }}>
+            <p style={{ fontSize: S(13), color: "#a1a1aa", fontWeight: 700, margin: "0 0 3px" }}>2</p>
+            <p style={{ fontSize: S(15), color: "#71717a", margin: "0 0 6px", fontWeight: 600 }}>파닭</p>
+            <p style={{ fontSize: S(44), fontWeight: 800, color: officeStock.padak < 0 ? "#e1360a" : "#e1360a", margin: 0, lineHeight: 1.05 }}>{officeStock.padak}</p>
+            {officeStock.padak < 0 && <p style={{ fontSize: S(11), color: "#e1360a", fontWeight: 700, margin: "4px 0 0" }}>보정 필요</p>}
           </div>
         </div>
       </div>
@@ -1554,29 +1554,29 @@ function AdminHome(p) {
         });
         var mLabel = (now.getMonth() + 1) + "월";
         // ellipsis 미사용 — scale 축소로 자연 fit (Task #9 패턴)
-        var colLabelStyle = { fontSize: S(11), color: "#a1a1aa", margin: "0 0 2px", fontWeight: 600 };
-        var colNumStyle = { fontSize: S(15), fontWeight: 800, margin: "0 0 1px", lineHeight: 1.1 };
-        var colSubStyle = { fontSize: S(10), color: "#71717a", fontWeight: 500, margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" };
-        var colPayStyle = { fontSize: S(13), color: "#e1360a", fontWeight: 800, margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" };
+        var colLabelStyle = { fontSize: S(12), color: "#a1a1aa", margin: "0 0 3px", fontWeight: 600 };
+        var colNumStyle = { fontSize: S(17), fontWeight: 800, margin: "0 0 1px", lineHeight: 1.1 };
+        var colSubStyle = { fontSize: S(11), color: "#71717a", fontWeight: 500, margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" };
+        var colPayStyle = { fontSize: S(15), color: "#e1360a", fontWeight: 800, margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" };
         return (
-          <div key={emp.id} style={Object.assign({}, CS, { marginBottom: S(11), padding: S(13) + "px " + S(14) + "px", borderRadius: S(18) })}>
-            <p style={{ fontSize: S(16), fontWeight: 700, margin: "0 0 " + S(11) + "px", color: "#18181b" }}>{emp.name}</p>
+          <div key={emp.id} style={Object.assign({}, CS, { marginBottom: S(11), padding: S(14) + "px " + S(15) + "px", borderRadius: S(18) })}>
+            <p style={{ fontSize: S(18), fontWeight: 700, margin: "0 0 " + S(12) + "px", color: "#18181b" }}>{emp.name}</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: S(8) }}>
               <div style={{ minWidth: 0 }}>
                 <p style={colLabelStyle}>누적 판매</p>
-                <p style={colNumStyle}>{totalSold}<span style={{ fontSize: S(10), color: "#a1a1aa", fontWeight: 500 }}>개</span></p>
+                <p style={colNumStyle}>{totalSold}<span style={{ fontSize: S(11), color: "#a1a1aa", fontWeight: 500 }}>개</span></p>
               </div>
               <div style={{ minWidth: 0 }}>
                 <p style={colLabelStyle}>누적 매출</p>
-                <p style={Object.assign({}, colPayStyle, { fontSize: S(12), color: "#71717a" })}>{formatCurrency(totalSold * price)}</p>
+                <p style={Object.assign({}, colPayStyle, { fontSize: S(13), color: "#71717a" })}>{formatCurrency(totalSold * price)}</p>
               </div>
               <div style={{ minWidth: 0 }}>
                 <p style={colLabelStyle}>{mLabel} 판매</p>
-                <p style={colNumStyle}>{monthSold}<span style={{ fontSize: S(10), color: "#a1a1aa", fontWeight: 500 }}>개</span></p>
+                <p style={colNumStyle}>{monthSold}<span style={{ fontSize: S(11), color: "#a1a1aa", fontWeight: 500 }}>개</span></p>
               </div>
               <div style={{ minWidth: 0 }}>
                 <p style={colLabelStyle}>{mLabel} 매출</p>
-                <p style={Object.assign({}, colPayStyle, { fontSize: S(12), color: "#71717a" })}>{formatCurrency(monthSold * price)}</p>
+                <p style={Object.assign({}, colPayStyle, { fontSize: S(13), color: "#71717a" })}>{formatCurrency(monthSold * price)}</p>
               </div>
               <div style={{ minWidth: 0 }}>
                 <p style={colLabelStyle}>{mLabel} 급여</p>
