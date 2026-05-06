@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, Component } from "react";
-import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, enqueuePendingReport, getPendingReportsCount, flushPendingReports, enqueuePendingAppData, getPendingAppDataCount, flushPendingAppData, subscribeReports, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
+import { store, reportStore, markInflightUpsert, clearInflightUpsert, markInflightDelete, clearInflightDelete, applyInflightOverlay, enqueuePendingReport, getPendingReportsCount, flushPendingReports, enqueuePendingAppData, getPendingAppDataCount, flushPendingAppData, subscribeReports, isClientError, syncToSheets, setSheetsUrl, getSheetsUrl, readFromSheets } from "./supabase.js";
 
 // Error Boundary: 백지 화면 방지
 class ErrorBoundary extends Component {
@@ -631,17 +631,24 @@ function EmpReport(p) {
         setToast("저장 완료!");
         setTimeout(function() { setToast(""); }, 2000);
       } else {
-        // 4) 실패 → 응급 큐 적재 + optimistic 롤백 + 사용자 알림
+        // 4) 실패 → optimistic 롤백 + 사용자 알림
         console.error("[EmpReport.save] DB 저장 실패:", result && result.message);
-        var pendingCount = enqueuePendingReport(row);
         p.setReports(prevReports);
         setEditing(true);
         setIsNew(prevIsNew);
         setShowCal(prevShowCal);
         setSelDate(prevSelDate);
         setSelKey(prevSelKey);
-        setToast("저장 실패 — 오프라인 큐에 보관됨 (" + pendingCount + "건 대기, 네트워크 복귀 시 자동 재시도)");
-        setTimeout(function() { setToast(""); }, 4500);
+        if (isClientError(result && result.error)) {
+          // T-I: client error(check/FK/UNIQUE/syntax) — 큐 적재 X, 즉시 안내
+          setToast("입력 오류 — " + (result.message || "값을 확인하고 다시 시도하세요"));
+          setTimeout(function() { setToast(""); }, 4500);
+        } else {
+          // 네트워크/일시 장애 — 응급 큐 적재
+          var pendingCount = enqueuePendingReport(row);
+          setToast("저장 실패 — 오프라인 큐에 보관됨 (" + pendingCount + "건 대기, 네트워크 복귀 시 자동 재시도)");
+          setTimeout(function() { setToast(""); }, 4500);
+        }
       }
     } catch(e) {
       console.error("[EmpReport.save] 오류:", e);
@@ -918,9 +925,14 @@ function EmpInventory(p) {
       setTimeout(function() { setToast(""); }, 2000);
     } else {
       p.setRequests(prevRequests);
-      var pendingCount = enqueuePendingAppData({ key: "ft-inv-requests", value: nextRequests, op: "set" });
-      setToast("요청 실패 — 오프라인 큐 (" + pendingCount + "건)");
-      setTimeout(function() { setToast(""); }, 3500);
+      if (isClientError(r && r.error)) {
+        setToast("입력 오류 — " + (r.message || "값을 확인하고 다시 시도하세요"));
+        setTimeout(function() { setToast(""); }, 3500);
+      } else {
+        var pendingCount = enqueuePendingAppData({ key: "ft-inv-requests", value: nextRequests, op: "set" });
+        setToast("요청 실패 — 오프라인 큐 (" + pendingCount + "건)");
+        setTimeout(function() { setToast(""); }, 3500);
+      }
     }
   }
 
@@ -1861,11 +1873,17 @@ function AdminChicken(p) {
     if (r && r.ok) {
       setToast("저장 완료"); setTimeout(function() { setToast(""); }, 2000);
     } else {
-      // 실패: optimistic 롤백 + 응급 큐 적재
+      // 실패: optimistic 롤백
       setProduction(prevProduction);
-      var pendingCount = enqueuePendingAppData({ key: "ft-production", value: u, op: "set" });
-      setToast("저장 실패 — 오프라인 큐 (" + pendingCount + "건 대기)");
-      setTimeout(function() { setToast(""); }, 3500);
+      if (isClientError(r && r.error)) {
+        // T-I: client error — 큐 적재 X
+        setToast("입력 오류 — " + (r.message || "값을 확인하고 다시 시도하세요"));
+        setTimeout(function() { setToast(""); }, 3500);
+      } else {
+        var pendingCount = enqueuePendingAppData({ key: "ft-production", value: u, op: "set" });
+        setToast("저장 실패 — 오프라인 큐 (" + pendingCount + "건 대기)");
+        setTimeout(function() { setToast(""); }, 3500);
+      }
     }
   }
 
@@ -2062,8 +2080,12 @@ function AdminInventory(p) {
       showToast("품목 추가됨");
     } else {
       setItems(prevItems);
-      var pc = enqueuePendingAppData({ key: "ft-inv-items", value: u, op: "set" });
-      showToast("추가 실패 — 오프라인 큐 (" + pc + "건)");
+      if (isClientError(r && r.error)) {
+        showToast("입력 오류 — " + (r.message || "값 확인"));
+      } else {
+        var pc = enqueuePendingAppData({ key: "ft-inv-items", value: u, op: "set" });
+        showToast("추가 실패 — 오프라인 큐 (" + pc + "건)");
+      }
     }
   }
 
@@ -2833,11 +2855,17 @@ function AdminReport(p) {
         setTimeout(function() { setToast(""); }, 2000);
       } else {
         console.error("[AdminReport.save] DB 저장 실패:", result && result.message);
-        var pendingCount = enqueuePendingReport(row);
         setReports(prevReports);
         setEditing(true);
-        setToast("저장 실패 — 오프라인 큐에 보관됨 (" + pendingCount + "건 대기, 네트워크 복귀 시 자동 재시도)");
-        setTimeout(function() { setToast(""); }, 4500);
+        if (isClientError(result && result.error)) {
+          // T-I: client error — 큐 적재 X
+          setToast("입력 오류 — " + (result.message || "값을 확인하고 다시 시도하세요"));
+          setTimeout(function() { setToast(""); }, 4500);
+        } else {
+          var pendingCount = enqueuePendingReport(row);
+          setToast("저장 실패 — 오프라인 큐에 보관됨 (" + pendingCount + "건 대기, 네트워크 복귀 시 자동 재시도)");
+          setTimeout(function() { setToast(""); }, 4500);
+        }
       }
     } catch(e) {
       console.error("[AdminReport.save] 오류:", e);

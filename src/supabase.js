@@ -7,6 +7,21 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // ─────────────────────────────────────────────────────────────────────────
+// PostgreSQL error code 가드 — 클라이언트 측 입력 오류는 큐 적재 X
+// 23xxx: integrity constraint violation (CHECK, FK, UNIQUE, NOT NULL)
+// 22xxx: data exception (numeric_value_out_of_range, invalid_datetime_format)
+// 42xxx: syntax error / access rule violation
+// 그 외 (PGRST/네트워크/일시 장애)는 큐 적재 → 자동 재시도 (현행 안전망 유지)
+// ─────────────────────────────────────────────────────────────────────────
+export function isClientError(error) {
+  if (!error) return false;
+  var code = String(error.code || "");
+  return code.indexOf("22") === 0
+      || code.indexOf("23") === 0
+      || code.indexOf("42") === 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // app_data 응급 큐: store.set/merge 실패시 누적 저장 → 부팅/online 시 재시도
 // reports 큐와 동일 패턴. 30+ store.set 호출부를 fire-and-forget으로 두어도
 // 자동 enqueue 안전망이 silent fail로 인한 데이터 손실을 차단.
@@ -112,17 +127,22 @@ function _attemptAppDataSet(key, value) {
 }
 
 // 1회 재시도 포함. transient 네트워크 보완용.
+// 반환: { ok: true } 또는 { ok: false, message, error } — error는 마지막 실패 객체 (code 포함)
 function _setWithRetry(key, value) {
   return _attemptAppDataSet(key, value).then(function(r1) {
     if (r1.ok) return { ok: true };
     console.error('[store.set] 1차 실패:', key, r1.error && r1.error.message ? r1.error.message : r1.error);
+    // client error는 재시도해도 어차피 fail → 즉시 반환 (T-K)
+    if (isClientError(r1.error)) {
+      return { ok: false, message: r1.error.message || "입력 오류", error: r1.error };
+    }
     return _attemptAppDataSet(key, value).then(function(r2) {
       if (r2.ok) return { ok: true };
       console.error('[store.set] 재시도 실패:', key, r2.error && r2.error.message ? r2.error.message : r2.error);
       var msg = (r2.error && r2.error.message) ? r2.error.message
               : (r1.error && r1.error.message) ? r1.error.message
               : "네트워크 오류";
-      return { ok: false, message: msg };
+      return { ok: false, message: msg, error: r2.error || r1.error };
     });
   });
 }
@@ -164,7 +184,12 @@ export const store = {
   set: function(key, value) {
     return _setWithRetry(key, value).then(function(r) {
       if (r.ok) return true;
-      // 안전망: 호출부 결과 미검사 가능성 → 자동 enqueue
+      // T-K 가드: client error(check/FK/UNIQUE/syntax)는 큐에 들어가도 영원히 fail → 우회
+      if (isClientError(r.error)) {
+        console.warn('[store.set] client error (큐 우회):', key, r.error && r.error.code, r.message);
+        return false;
+      }
+      // 안전망: 호출부 결과 미검사 가능성 → 자동 enqueue (네트워크 등 transient만)
       enqueuePendingAppData({ key: key, value: value, op: 'set' });
       return false;
     });
@@ -177,6 +202,11 @@ export const store = {
       var merged = _doMerge(current, partialData);
       return _setWithRetry(key, merged).then(function(r) {
         if (r.ok) return merged;
+        // T-K 가드 동일
+        if (isClientError(r.error)) {
+          console.warn('[store.merge] client error (큐 우회):', key, r.error && r.error.code, r.message);
+          return false;
+        }
         // 안전망: partialData를 큐에 → flush 시 fresh GET + re-merge로 재시도
         enqueuePendingAppData({ key: key, value: partialData, op: 'merge' });
         return false;
@@ -188,7 +218,7 @@ export const store = {
       var merged = _doMerge(current, partialData);
       return _setWithRetry(key, merged).then(function(r) {
         if (r.ok) return { ok: true, value: merged };
-        return { ok: false, message: r.message };
+        return { ok: false, message: r.message, error: r.error };
       });
     });
   }
@@ -344,7 +374,7 @@ export var reportStore = {
       .catch(function(e) { console.error('[reportStore.getAll] 네트워크 오류:', e); return null; });
   },
   // transient 네트워크 보완용 1회 재시도 + 응급 큐와 공존.
-  // 영구 실패 (스키마/RLS 등)는 1회 재시도해도 어차피 fail → 호출부가 큐에 적재.
+  // T-K: client error(check/FK/UNIQUE/syntax)는 1차에서 즉시 false (재시도/큐 우회).
   upsert: function(report) {
     function attempt() {
       return supabase
@@ -359,18 +389,27 @@ export var reportStore = {
     return attempt().then(function(r1) {
       if (r1.ok) return true;
       console.error('[reportStore.upsert] 1차 실패:', r1.error && r1.error.message ? r1.error.message : r1.error);
+      // T-K: client error는 재시도/큐 모두 우회
+      if (isClientError(r1.error)) {
+        console.warn('[reportStore.upsert] client error (큐 우회):', r1.error.code, r1.error.message);
+        return false;
+      }
       return attempt().then(function(r2) {
         if (r2.ok) return true;
         console.error('[reportStore.upsert] 재시도 실패:', r2.error && r2.error.message ? r2.error.message : r2.error);
-        // 안전망: 호출부가 결과 미검사일 수 있는 fire-and-forget 경로
-        // (예: AdminHome 백업 복원 batch upsert)에서도 응급 큐에 적재되도록 자동 enqueue.
-        // upsertWithError를 쓰는 호출부는 자체 enqueue (같은 id면 큐 dedupe로 무해).
+        // T-K: 재시도 후 발견된 client error도 큐 우회
+        if (isClientError(r2.error)) {
+          console.warn('[reportStore.upsert] client error 재시도 (큐 우회):', r2.error.code, r2.error.message);
+          return false;
+        }
+        // 안전망: transient 실패만 큐에 적재 (fire-and-forget 경로 보호)
         try { enqueuePendingReport(report); } catch(_) {}
         return false;
       });
     });
   },
-  // 실패 사유 메시지까지 반환 (UI 토스트용). 1회 재시도 포함.
+  // 실패 사유 메시지 + error 객체까지 반환 (UI 토스트용 + isClientError 체크용).
+  // 1회 재시도 포함. T-K 가드 적용.
   upsertWithError: function(report) {
     function attempt() {
       return supabase
@@ -385,13 +424,17 @@ export var reportStore = {
     return attempt().then(function(r1) {
       if (r1.ok) return { ok: true };
       console.error('[reportStore.upsert] 1차 실패:', r1.error && r1.error.message ? r1.error.message : r1.error);
+      // T-K: client error는 재시도 우회
+      if (isClientError(r1.error)) {
+        return { ok: false, message: r1.error.message || "입력 오류", error: r1.error };
+      }
       return attempt().then(function(r2) {
         if (r2.ok) return { ok: true };
         console.error('[reportStore.upsert] 재시도 실패:', r2.error && r2.error.message ? r2.error.message : r2.error);
         var msg = (r2.error && r2.error.message) ? r2.error.message
                 : (r1.error && r1.error.message) ? r1.error.message
                 : "네트워크 오류";
-        return { ok: false, message: msg };
+        return { ok: false, message: msg, error: r2.error || r1.error };
       });
     });
   },
