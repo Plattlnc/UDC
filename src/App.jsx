@@ -1452,7 +1452,8 @@ function AdminHome(p) {
   var cardStyleBase = Object.assign({}, CS, { padding: S(22), marginBottom: S(16), borderRadius: S(18) });
 
   // Task #18: 섹션 헤더 스타일
-  var sectionHeaderStyle = { fontSize: S(12), fontWeight: 700, color: "#71717a", margin: S(20) + "px 0 " + S(10) + "px", letterSpacing: 0.3 };
+  var sectionHeaderStyle = { fontSize: S(18), fontWeight: 700, color: "#18181b", margin: S(22) + "px 0 " + S(12) + "px", letterSpacing: 0.2 };
+  var sectionSubStyle = { fontSize: S(13), fontWeight: 500, color: "#a1a1aa", marginLeft: 8 };
   var liveBadgeStyle = { fontSize: S(10), fontWeight: 700, color: "#16a34a", background: "#f0fdf4", padding: "2px 6px", borderRadius: 4, border: "1px solid #bbf7d0", marginLeft: 6 };
   var derivedBadgeStyle = { fontSize: S(10), fontWeight: 700, color: "#a1a1aa", background: "#f4f4f5", padding: "2px 6px", borderRadius: 4, marginLeft: 6 };
 
@@ -1461,7 +1462,7 @@ function AdminHome(p) {
       {/* ── 섹션 1: 매출 현황 (실시간 현재 월) ───────────────────────── */}
       <p style={Object.assign({}, sectionHeaderStyle, { marginTop: 0 })}>
         📊 매출 현황
-        <span style={{ fontWeight: 500, color: "#a1a1aa", marginLeft: 6 }}>· 실시간 현재 월</span>
+        <span style={sectionSubStyle}>· 실시간 현재 월</span>
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S(13), marginBottom: S(16) }}>
         <div style={Object.assign({}, cardStyleBase, { background: "linear-gradient(135deg,#e1360a,#c42d08)", border: "none", marginBottom: 0 })}>
@@ -1477,7 +1478,7 @@ function AdminHome(p) {
       {/* ── 섹션 2: 꼬치 재고 (실시간 ledger) ──────────────────────── */}
       <p style={sectionHeaderStyle}>
         🍢 꼬치 재고
-        <span style={{ fontWeight: 500, color: "#a1a1aa", marginLeft: 6 }}>· 실시간 현재 재고</span>
+        <span style={sectionSubStyle}>· 실시간 현재 재고</span>
         {isLive && <span title="실시간 ledger 구독 동작 중" style={liveBadgeStyle}>🟢 LIVE</span>}
         {ledgerStatus === "unavailable" && <span title="inventory_events 미적용 — derived 사용 중" style={derivedBadgeStyle}>derived</span>}
       </p>
@@ -1517,7 +1518,7 @@ function AdminHome(p) {
       {/* ── 섹션 3: 직원별 현황 (5-col, Task #14) ──────────────────── */}
       <p style={sectionHeaderStyle}>
         👥 직원별 현황
-        <span style={{ fontWeight: 500, color: "#a1a1aa", marginLeft: 6 }}>· 누적 / 현재 월 / 월 급여</span>
+        <span style={sectionSubStyle}>· 누적 / 현재 월 / 월 급여</span>
       </p>
       {(p.users || []).filter(function(u) { return u.role === "employee" && (u.status || "active") === "active"; }).map(function(emp) {
         // T-G: 5필드 — 누적 판매/매출, 월 판매/매출, 월 급여 (Task #10 공식 재사용)
@@ -1589,7 +1590,7 @@ function AdminHome(p) {
       {/* ── 섹션 4: 구글 시트 동기화 (절대 변경 X) ───────────────────── */}
       <p style={sectionHeaderStyle}>
         🔄 동기화
-        <span style={{ fontWeight: 500, color: "#a1a1aa", marginLeft: 6 }}>· Google Sheets</span>
+        <span style={sectionSubStyle}>· Google Sheets</span>
       </p>
       <div style={Object.assign({}, CS, { marginTop: 0, padding: 16 })}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
