@@ -491,7 +491,7 @@ export var reportStore = {
   // 기존 형태 → row 변환
   toRow: function(id, date, data) {
     if (!data || typeof data !== "object") data = {};
-    return {
+    var row = {
       id: id,
       date: date,
       user_id: data.userId || "",
@@ -509,11 +509,18 @@ export var reportStore = {
       memo: data.memo || "",
       paid: !!data.paid,
       pay_override: data.payOverride !== undefined && data.payOverride !== null ? Number(data.payOverride) : null,
-      // 반품 (Task #16). 마이그레이션 006 적용 전 환경에서도 0 default 안전.
-      return_sunsal: parseInt(data.return_sunsal, 10) || 0,
-      return_padak: parseInt(data.return_padak, 10) || 0,
       saved_at: data.savedAt || new Date().toISOString()
     };
+    // 반품 (Task #16, 마이그레이션 006). 컬럼 미적용 환경 호환을 위해 값이 있을 때만 포함.
+    // 미적용 + return 값 없음 → 컬럼 자체 미포함 → 기존 schema 정상 INSERT
+    // 미적용 + return 값 있음 → INSERT 실패 (사용자에게 migration 필요 유도 — 의도)
+    // 적용 + 값 없음 → 컬럼 미포함 → DB default 0 적용
+    // 적용 + 값 있음 → 정확히 저장
+    var rs = parseInt(data.return_sunsal, 10) || 0;
+    var rp = parseInt(data.return_padak, 10) || 0;
+    if (rs > 0) row.return_sunsal = rs;
+    if (rp > 0) row.return_padak = rp;
+    return row;
   }
 };
 

@@ -1379,7 +1379,8 @@ function AdminHome(p) {
     return { mSold: mSold, mRev: mSold * price, wSold: wSold, wRev: wSold * price, dSold: dSold, dRev: dSold * price };
   }, [reports, settings, thisMonthKey, weekKey, selDay, price, midnightTick]);
 
-  var officeStock = useMemo(function() {
+  // 파생 fallback: ledger 미사용 환경(004 미적용)에서 표시할 값
+  var officeStockDerived = useMemo(function() {
     var produced = { sunsal: 0, padak: 0 };
     var consumed = { sunsal: 0, padak: 0 };
     production.forEach(function(pr) {
@@ -1396,6 +1397,59 @@ function AdminHome(p) {
     });
     return { sunsal: produced.sunsal - consumed.sunsal, padak: produced.padak - consumed.padak };
   }, [production, reports]);
+
+  // T-F (Task #17): inventoryEvents.balance() 결과 — ledger 기반 stored counter
+  // 004 마이그레이션 미적용 시 null → derived fallback 사용
+  // INSERT 이벤트 수신 시 즉시 refresh → 실시간 반영
+  var rLedger = useState(null), ledgerBalance = rLedger[0], setLedgerBalance = rLedger[1];
+  var rWarnings = useState([]), warnings = rWarnings[0], setWarnings = rWarnings[1];
+  var rLedgerStatus = useState("idle"), ledgerStatus = rLedgerStatus[0], setLedgerStatus = rLedgerStatus[1];
+  // 표시용 값: ledger가 있으면 ledger, 없으면 derived
+  var officeStock = ledgerBalance || officeStockDerived;
+  var isLive = ledgerBalance != null && ledgerStatus === "live";
+
+  useEffect(function() {
+    var alive = true;
+    function refreshBalance() {
+      inventoryEvents.balance().then(function(r) {
+        if (!alive) return;
+        if (r.ok && Array.isArray(r.data)) {
+          // {sku, office_stock} 형식 → {sunsal, padak} 평탄화
+          var flat = { sunsal: 0, padak: 0 };
+          r.data.forEach(function(row) {
+            if (row.sku === 'sunsal') flat.sunsal = Number(row.office_stock) || 0;
+            else if (row.sku === 'padak') flat.padak = Number(row.office_stock) || 0;
+          });
+          setLedgerBalance(flat);
+        } else if (r.error) {
+          // 미적용/일시 장애: ledger 사용 안 함 (derived fallback 자동)
+          var c = String(r.error.code || "");
+          if (c === "PGRST205" || c === "42P01" || (r.error.message || "").indexOf("Could not find the table") >= 0) {
+            console.log('[AdminHome] inventory_events 미적용 — derived fallback 사용');
+            setLedgerStatus("unavailable");
+          } else {
+            console.warn('[AdminHome] balance fetch 실패:', r.error.code, r.error.message);
+          }
+        }
+      });
+    }
+    function refreshWarnings() {
+      inventoryEvents.warnings().then(function(r) {
+        if (!alive) return;
+        if (r.ok) setWarnings(r.data || []);
+      });
+    }
+    refreshBalance();
+    refreshWarnings();
+    // Realtime 구독 (publication 미적용 시 SUBSCRIBED만 도달, 이벤트 미수신 — 안전)
+    var unsub = inventoryEvents.subscribe({
+      onInsert: function() { refreshBalance(); refreshWarnings(); },
+      onStatus: function(status) {
+        if (status === "SUBSCRIBED") setLedgerStatus(function(prev) { return prev === "unavailable" ? prev : "live"; });
+      }
+    });
+    return function() { alive = false; try { unsub(); } catch(_) {} };
+  }, []);
 
   // 스케일된 PAGE / 카드 스타일 (344px 이하에서만 축소)
   var pageStyle = Object.assign({}, PAGE, { padding: S(22) + "px " + S(22) + "px 110px" });
@@ -1441,18 +1495,44 @@ function AdminHome(p) {
         </div>
       </div>
       <div style={Object.assign({}, cardStyleBase, { padding: S(16) })}>
-        <p style={{ fontSize: S(14), fontWeight: 700, margin: "0 0 " + S(11) + "px" }}>🍗 사무실 재고</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 0 " + S(11) + "px" }}>
+          <p style={{ fontSize: S(14), fontWeight: 700, margin: 0 }}>🍗 사무실 재고</p>
+          {isLive && (
+            <span title="실시간 ledger 구독 동작 중" style={{ fontSize: S(10), fontWeight: 700, color: "#16a34a", background: "#f0fdf4", padding: "2px 6px", borderRadius: 4, border: "1px solid #bbf7d0" }}>🟢 LIVE</span>
+          )}
+          {ledgerStatus === "unavailable" && (
+            <span title="inventory_events 미적용 — derived 사용 중" style={{ fontSize: S(10), fontWeight: 700, color: "#a1a1aa", background: "#f4f4f5", padding: "2px 6px", borderRadius: 4 }}>derived</span>
+          )}
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: S(16) }}>
           <div style={{ textAlign: "center", padding: S(13), background: "#fff8f6", borderRadius: S(9) }}>
             <p style={{ fontSize: S(13), color: "#71717a", margin: "0 0 4px" }}>순살</p>
             <p style={{ fontSize: S(32), fontWeight: 800, color: officeStock.sunsal < 0 ? "#e1360a" : "#18181b", margin: 0, lineHeight: 1.1 }}>{officeStock.sunsal}</p>
+            {officeStock.sunsal < 0 && <p style={{ fontSize: S(10), color: "#e1360a", fontWeight: 700, margin: "2px 0 0" }}>보정 필요</p>}
           </div>
           <div style={{ textAlign: "center", padding: S(13), background: "#fff8f6", borderRadius: S(9) }}>
             <p style={{ fontSize: S(13), color: "#71717a", margin: "0 0 4px" }}>파닭</p>
             <p style={{ fontSize: S(32), fontWeight: 800, color: officeStock.padak < 0 ? "#e1360a" : "#18181b", margin: 0, lineHeight: 1.1 }}>{officeStock.padak}</p>
+            {officeStock.padak < 0 && <p style={{ fontSize: S(10), color: "#e1360a", fontWeight: 700, margin: "2px 0 0" }}>보정 필요</p>}
           </div>
         </div>
       </div>
+      {/* 검증 경고 배지 — returned > shipped 케이스 */}
+      {warnings && warnings.length > 0 && (
+        <div
+          onClick={function() { console.log('[AdminHome] 검증 경고 상세:', warnings); }}
+          title={"클릭하여 콘솔에 상세 출력 (" + warnings.length + "건)"}
+          style={{
+            background: "#fffbeb", color: "#92400e",
+            border: "1px solid #fde68a", borderRadius: S(9),
+            padding: S(11) + "px " + S(14) + "px",
+            marginBottom: S(16),
+            cursor: "pointer",
+            fontSize: S(13), fontWeight: 600
+          }}>
+          ⚠ 검증 경고 {warnings.length}건 — 반품이 출고보다 많은 일보 발견. 클릭하여 상세 보기
+        </div>
+      )}
       <p style={{ fontSize: S(15), fontWeight: 700, margin: S(13) + "px 0 " + S(11) + "px" }}>👥 직원별 현황</p>
       {(p.users || []).filter(function(u) { return u.role === "employee" && (u.status || "active") !== "deleted"; }).map(function(emp) {
         // T-G: 5필드 — 누적 판매/매출, 월 판매/매출, 월 급여 (Task #10 공식 재사용)
