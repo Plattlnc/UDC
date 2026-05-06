@@ -1519,7 +1519,7 @@ function AdminHome(p) {
         👥 직원별 현황
         <span style={{ fontWeight: 500, color: "#a1a1aa", marginLeft: 6 }}>· 누적 / 현재 월 / 월 급여</span>
       </p>
-      {(p.users || []).filter(function(u) { return u.role === "employee" && (u.status || "active") !== "deleted"; }).map(function(emp) {
+      {(p.users || []).filter(function(u) { return u.role === "employee" && (u.status || "active") === "active"; }).map(function(emp) {
         // T-G: 5필드 — 누적 판매/매출, 월 판매/매출, 월 급여 (Task #10 공식 재사용)
         // empSettings 우선 → settings 글로벌 → default (EmpSalary L1064-1066 패턴)
         var empSettingsMap = settings.empSettings || {};
@@ -1560,7 +1560,7 @@ function AdminHome(p) {
         var colPayStyle = { fontSize: S(13), color: "#e1360a", fontWeight: 800, margin: 0, lineHeight: 1.1, whiteSpace: "nowrap" };
         return (
           <div key={emp.id} style={Object.assign({}, CS, { marginBottom: S(11), padding: S(13) + "px " + S(14) + "px", borderRadius: S(18) })}>
-            <p style={{ fontSize: S(16), fontWeight: 700, margin: "0 0 " + S(11) + "px", color: "#18181b" }}>{emp.name}{(emp.status || "active") === "resigned" ? <span style={{ fontSize: S(12), fontWeight: 600, color: "#e1360a", marginLeft: 7 }}>(퇴사)</span> : ""}</p>
+            <p style={{ fontSize: S(16), fontWeight: 700, margin: "0 0 " + S(11) + "px", color: "#18181b" }}>{emp.name}</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: S(8) }}>
               <div style={{ minWidth: 0 }}>
                 <p style={colLabelStyle}>누적 판매</p>
